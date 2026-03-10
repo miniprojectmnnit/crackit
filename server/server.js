@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const extractRoute = require("./routes/extract");
 require("dotenv").config();
 const app = express();
 
@@ -13,7 +12,17 @@ mongoose.connect(MONGODB_URI)
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.error("MongoDB connection error:", err));
 
-app.use("/extract", extractRoute);
+app.use((req, res, next) => {
+  console.log(`[REQ] ${req.method} ${req.url}`);
+  next();
+});
+
+app.use("/api/extract", require("./routes/extract"));
+app.use("/api/interviews", require("./routes/interview"));
+
+// Add direct fallbacks for both the new API path and the legacy extension path
+app.post("/api/extract", require("./controllers/extractController").extractQuestions);
+app.post("/extract", require("./controllers/extractController").extractQuestions);
 
 app.get("/", (req, res) => {
   res.send("API is running");

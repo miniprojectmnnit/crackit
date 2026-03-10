@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import NotFound from "./pages/NotFound";
+import { InterviewSimulation } from "./pages";
 
 const App = () => {
   return (
@@ -23,6 +24,7 @@ const App = () => {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/interviewsimulation" element={<InterviewSimulation />} />
 
             {/* 404 Page */}
             <Route path="*" element={<NotFound />} />

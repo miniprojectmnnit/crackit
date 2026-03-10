@@ -14,6 +14,7 @@ declare global {
   const defineContentScript: typeof import('wxt/sandbox')['defineContentScript']
   const defineUnlistedScript: typeof import('wxt/sandbox')['defineUnlistedScript']
   const defineWxtPlugin: typeof import('wxt/sandbox')['defineWxtPlugin']
+  const detectSite: typeof import('D:/Miniproject/crackit/extension/utils/detectSite')['detectSite']
   const extractCandidateQuestions: typeof import('D:/Miniproject/crackit/extension/utils/extractor')['extractCandidateQuestions']
   const extractQuestionsApi: typeof import('D:/Miniproject/crackit/extension/utils/api')['extractQuestionsApi']
   const fakeBrowser: typeof import('wxt/testing')['fakeBrowser']
