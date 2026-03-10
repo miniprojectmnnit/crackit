@@ -42,9 +42,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   
   mockBtn.addEventListener('click', () => {
-    document.querySelector('.actions').style.display = 'none';
-    questionsListEl.style.display = 'none';
-    statusEl.style.display = 'none';
-    renderInterviewUI(currentQuestions);
+    chrome.tabs.create({
+      url: "http://localhost:5173/interviewsimulation?url=" + encodeURIComponent(tab.url)
+    });
   });
 });

@@ -13,6 +13,7 @@
     "defineContentScript": true,
     "defineUnlistedScript": true,
     "defineWxtPlugin": true,
+    "detectSite": true,
     "extractCandidateQuestions": true,
     "extractQuestionsApi": true,
     "fakeBrowser": true,

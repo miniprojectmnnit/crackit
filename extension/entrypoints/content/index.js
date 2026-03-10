@@ -22,7 +22,11 @@ export default defineContentScript({
         else if (site === "leetcode") result = extractLeetCode();
         else if (site === "medium") result = extractMedium();
         else if (site === "reddit") result = extractReddit();
-        else result = extractGeneric();
+        
+        // Fallback to generic if specialised extractor returned null or site is unknown
+        if (!result) {
+          result = extractGeneric();
+        }
 
         sendResponse(result);
       }

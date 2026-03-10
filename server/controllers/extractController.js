@@ -47,16 +47,16 @@ exports.extractQuestions = async (req, res) => {
         const { normalizedMap, normalizedTexts } =
             normalizeQuestions(candidateQuestions);
 
-        /* 4️⃣ Insert / reuse questions in DB */
-        const extractedQuestions =
-            await upsertQuestions(normalizedMap, normalizedTexts);
-
-        /* 5️⃣ Detect source domain */
+        /* 3.5 Detect source domain */
         let sourceDomain = "unknown";
 
         try {
             sourceDomain = new URL(url).hostname;
         } catch { }
+
+        /* 4️⃣ Insert / reuse questions in DB */
+        const extractedQuestions =
+            await upsertQuestions(normalizedMap, normalizedTexts, sourceDomain);
 
         /* 6️⃣ Save page */
         const newPage = new Page({

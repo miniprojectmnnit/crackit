@@ -1,6 +1,6 @@
 export async function extractQuestionsApi(url, article_text) {
   try {
-    const response = await fetch('http://localhost:5000/extract', {
+    const response = await fetch('http://localhost:5000/api/extract', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

@@ -16,14 +16,14 @@ async function extractQuestionsWithLLM(text) {
 
   if (!text || text.trim().length === 0) return [];
 
-  // Limit token usage
-  const trimmedText = text.slice(0, 12000);
+  // Increase token usage limit significantly
+  const trimmedText = text.slice(0, 48000);
 
   const prompt = `
 You are an expert interview question extractor.
 
 TASK:
-Extract ONLY interview questions or prompts from the article text.
+Extract EVERY SINGLE interview question, prompt, or technical concept asked during the interview from the article text. Do not miss any question. If the user mentions "I was asked X and Y", extract both X and Y as separate questions.
 
 IGNORE:
 - navigation text
