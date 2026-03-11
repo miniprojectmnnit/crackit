@@ -1,1 +1,1 @@
-export { default as InterviewSimulation } from './InterviewSimulation';
+export { default as InterviewSimulation } from './InterviewSimulation/index';
