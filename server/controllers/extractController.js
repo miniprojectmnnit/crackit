@@ -4,12 +4,17 @@ const Question = require("../models/Question");
 const { extractQuestionsWithLLM } = require("../utils/llmExtractor");
 const { normalizeQuestions } = require("../services/normalizerService");
 const { upsertQuestions } = require("../services/questionService");
+const log = require("../utils/logger");
 
 exports.extractQuestions = async (req, res) => {
 
     const { url, article_text } = req.body;
 
+    log.info("EXTRACT", `📄 Received extraction request for: ${url}`);
+    log.info("EXTRACT", `📝 Article text length: ${article_text ? article_text.length : 0} chars`);
+
     if (!url || !article_text) {
+        log.warn("EXTRACT", `Missing required fields — url: ${!!url}, article_text: ${!!article_text}`);
         return res.status(400).json({
             error: "url and article_text are required"
         });
@@ -18,6 +23,7 @@ exports.extractQuestions = async (req, res) => {
     try {
 
         /* 1️⃣ Check cache */
+        log.info("EXTRACT", `🔍 Checking cache for URL: ${url}`);
         const existingPage = await Page.findOne({ page_url: url }).lean();
 
         if (existingPage) {
@@ -26,22 +32,29 @@ exports.extractQuestions = async (req, res) => {
                 _id: { $in: existingPage.question_ids }
             }).lean();
 
+            log.success("EXTRACT", `💾 Cache HIT — returning ${storedQuestions.length} cached questions`);
+
             return res.json({
                 message: "Cached",
                 questions: storedQuestions
             });
         }
 
+        log.info("EXTRACT", `🚫 Cache MISS — proceeding with LLM extraction`);
+
         /* 2️⃣ Extract questions using LLM */
         const candidateQuestions =
             await extractQuestionsWithLLM(article_text);
 
         if (!candidateQuestions || candidateQuestions.length === 0) {
+            log.warn("EXTRACT", `No questions found in article`);
             return res.json({
                 message: "No questions found",
                 questions: []
             });
         }
+
+        log.success("EXTRACT", `🤖 LLM extracted ${candidateQuestions.length} candidate questions`);
 
         /* 3️⃣ Normalize questions */
         const { normalizedMap, normalizedTexts } =
@@ -53,6 +66,8 @@ exports.extractQuestions = async (req, res) => {
         try {
             sourceDomain = new URL(url).hostname;
         } catch { }
+
+        log.info("EXTRACT", `🌐 Source domain: ${sourceDomain}`);
 
         /* 4️⃣ Insert / reuse questions in DB */
         const extractedQuestions =
@@ -67,8 +82,10 @@ exports.extractQuestions = async (req, res) => {
         });
 
         await newPage.save();
+        log.success("EXTRACT", `📄 Page record saved for: ${url}`);
 
         /* 7️⃣ Response */
+        log.success("EXTRACT", `✅ Extraction complete — ${extractedQuestions.length} questions saved for ${url}`);
 
         return res.json({
             message: "Extracted",
@@ -77,7 +94,7 @@ exports.extractQuestions = async (req, res) => {
 
     } catch (error) {
 
-        console.error("Extraction error:", error);
+        log.error("EXTRACT", `Extraction failed for ${url}: ${error.message}`, error);
 
         return res.status(500).json({
             error: "Internal server error"

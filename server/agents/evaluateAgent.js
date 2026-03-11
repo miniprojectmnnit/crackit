@@ -1,12 +1,16 @@
 const { ai } = require("../utils/geminiClient");
+const log = require("../utils/logger");
 
 async function evaluateAnswer(question, answer, optimalSolution = "") {
+
+  log.info("EVAL_AGENT", `🤖 Starting evaluation — type: ${question.type}, question: "${question.question_text.substring(0, 60)}..."`);
+  log.info("EVAL_AGENT", `📝 Answer preview: "${String(answer).substring(0, 100)}..."`);
 
   const prompt = `
 ================ ROLE =================
 You are a senior technical interviewer conducting a structured programming interview.
 
-Your job is to evaluate a candidate’s answer to a technical question and provide an objective assessment.
+Your job is to evaluate a candidate's answer to a technical question and provide an objective assessment.
 
 You must behave like a real interviewer:
 • Fair but critical
@@ -110,19 +114,29 @@ Return the JSON object now.
     });
 
     let output = response.text || "";
+    log.info("EVAL_AGENT", `📨 Received LLM response (${output.length} chars)`);
+
     output = output.replace(/```json/g, "").replace(/```/g, "").trim();
 
     const jsonStart = output.indexOf("{");
     const jsonEnd = output.lastIndexOf("}");
 
     if (jsonStart !== -1 && jsonEnd !== -1) {
-      return JSON.parse(output.substring(jsonStart, jsonEnd + 1));
+      const result = JSON.parse(output.substring(jsonStart, jsonEnd + 1));
+      log.success("EVAL_AGENT", `✅ Evaluation parsed — correctness: ${result.correctness}, clarity: ${result.clarity}, problem_solving: ${result.problem_solving}`);
+      if (result.follow_up_question) {
+        log.info("EVAL_AGENT", `🔄 Follow-up generated: "${result.follow_up_question.substring(0, 80)}..."`);
+      } else {
+        log.info("EVAL_AGENT", `🔄 No follow-up question needed`);
+      }
+      return result;
     }
 
+    log.warn("EVAL_AGENT", `Failed to parse JSON from LLM response`);
     return null;
 
   } catch (error) {
-    console.error("EvaluateAgent Error:", error.message);
+    log.error("EVAL_AGENT", `Evaluation failed: ${error.message}`);
 
     return {
       correctness: 0,
