@@ -3,19 +3,18 @@ import { useSearchParams } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import Editor from '@monaco-editor/react';
 import { Play, Send, Lightbulb, CheckCircle2, XCircle } from 'lucide-react';
-import { useUser } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
 import InterviewReport from '../components/InterviewReport';
-
 const InterviewSimulation = () => {
   const [searchParams] = useSearchParams();
   const url = searchParams.get('url');
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Interaction State
   const [code, setCode] = useState('// Write your solution here...');
   const [answer, setAnswer] = useState('');
@@ -45,7 +44,7 @@ const InterviewSimulation = () => {
       // 2. Fetch Questions
       const objRes = await fetch(`http://localhost:5000/api/interviews/questions?url=${encodeURIComponent(url)}`);
       if (!objRes.ok) throw new Error("Failed to load questions");
-      
+
       const populatedQuestions = await objRes.json();
       setQuestions(populatedQuestions);
 
@@ -77,12 +76,12 @@ const InterviewSimulation = () => {
       // 2. Setup Code Editor
       if (currentQuestion.type === 'Coding') {
         const name = currentQuestion.title ? currentQuestion.title.replace(/ /g, '') : 'solve';
-        
+
         // Use provided test cases to infer params if available, otherwise just use empty args
         let args = '';
         if (currentQuestion.test_cases && currentQuestion.test_cases.length > 0) {
           // just illustrative 
-          args = 'input'; 
+          args = 'input';
         }
 
         const template = `/**
@@ -136,7 +135,7 @@ function ${name}(${args}) {
       });
       const data = await res.json();
       setFeedback(data.evaluation);
-      
+
       // Auto-speak the AI's feedback
       if (data.evaluation && data.evaluation.feedback) {
         let msg = data.evaluation.feedback;
@@ -145,8 +144,8 @@ function ${name}(${args}) {
         }
         speakQuestion(msg);
       }
-      
-    } catch(err) {
+
+    } catch (err) {
       console.error(err);
     }
     setIsEvaluating(false);
@@ -166,7 +165,7 @@ function ${name}(${args}) {
       });
       const data = await res.json();
       setExecResult(data);
-    } catch(err) {
+    } catch (err) {
       console.error(err);
       setExecResult({ passed: 0, failed: 1, total: 1, log: "Execution failed to reach server." });
     }
@@ -185,7 +184,7 @@ function ${name}(${args}) {
 
   return (
     <div className="flex flex-col h-screen bg-neutral-950 text-neutral-200 w-full font-sans overflow-hidden">
-      
+
       {/* HEADER */}
       <header className="flex justify-between items-center p-4 border-b border-neutral-800 bg-neutral-900">
         <div>
@@ -199,10 +198,10 @@ function ${name}(${args}) {
 
       {/* DYNAMIC MAIN LAYOUT */}
       <div className={`flex-1 p-4 flex ${isCoding ? 'flex-row gap-4' : 'flex-col gap-6'} overflow-hidden`}>
-        
+
         {/* MEDIA PIPELINE (AVATAR & WEBCAM) */}
         <div className={`flex flex-col gap-4 ${isCoding ? 'w-1/3 min-w-[300px]' : 'w-full max-w-4xl mx-auto h-full'}`}>
-          
+
           {/* AI INTERVIEWER */}
           <div className="relative rounded-xl overflow-hidden bg-neutral-800 border-2 border-cyan-900/50 flex-1 flex flex-col shadow-2xl">
             <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded text-xs z-10 font-medium text-cyan-300">
@@ -221,10 +220,10 @@ function ${name}(${args}) {
             <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded text-xs z-10 font-medium text-emerald-400">
               You (Candidate)
             </div>
-            <Webcam 
-               audio={true} 
-               mirrored={true} 
-               className="w-full h-full object-cover" 
+            <Webcam
+              audio={true}
+              mirrored={true}
+              className="w-full h-full object-cover"
             />
           </div>
 
@@ -233,7 +232,7 @@ function ${name}(${args}) {
 
         {/* INTERACTION AREA (CODE OR TEXT) */}
         <div className={`flex flex-col gap-4 rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden shadow-2xl ${isCoding ? 'w-2/3 h-full' : 'w-full max-w-4xl mx-auto flex-1'}`}>
-          
+
           {/* QUESTION PANEL */}
           <div className="p-6 border-b border-neutral-800 overflow-y-auto max-h-[40%]">
             <h2 className="text-xl font-semibold mb-2">{currentQuestion.question_text}</h2>
@@ -292,33 +291,33 @@ function ${name}(${args}) {
           {/* FEEDBACK OVERLAY (IF ANY) */}
           {feedback && (
             <div className="p-4 bg-cyan-950/30 border-t border-cyan-900 text-cyan-100 flex gap-4 items-start">
-               <Lightbulb className="text-cyan-400 shrink-0 mt-1" size={20} />
-               <div className="flex-1">
-                  <h4 className="font-semibold text-cyan-300 mb-1">AI Feedback</h4>
-                  <p className="text-sm text-cyan-100/80 leading-relaxed">{feedback.feedback}</p>
-                  
-                  {feedback.follow_up_question && (
-                    <div className="mt-2 p-3 bg-cyan-900/40 rounded border border-cyan-800/50">
-                      <span className="text-xs font-bold text-cyan-500 uppercase tracking-wider">Follow-Up Question:</span>
-                      <p className="text-sm mt-1">{feedback.follow_up_question}</p>
-                    </div>
-                  )}
+              <Lightbulb className="text-cyan-400 shrink-0 mt-1" size={20} />
+              <div className="flex-1">
+                <h4 className="font-semibold text-cyan-300 mb-1">AI Feedback</h4>
+                <p className="text-sm text-cyan-100/80 leading-relaxed">{feedback.feedback}</p>
 
-                  <div className="mt-3 flex gap-4 text-xs font-medium">
-                     <span className="bg-black/40 px-2 py-1 rounded">Score: {feedback.correctness}/100</span>
-                     <span className="bg-black/40 px-2 py-1 rounded">Clarity: {feedback.clarity}/100</span>
+                {feedback.follow_up_question && (
+                  <div className="mt-2 p-3 bg-cyan-900/40 rounded border border-cyan-800/50">
+                    <span className="text-xs font-bold text-cyan-500 uppercase tracking-wider">Follow-Up Question:</span>
+                    <p className="text-sm mt-1">{feedback.follow_up_question}</p>
                   </div>
-               </div>
-               <div className="flex flex-col gap-2 ml-auto shrink-0">
-                 {feedback.follow_up_question && (
-                   <button onClick={() => { setFeedback(null); setAnswer(''); }} className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded text-sm text-white font-medium transition-colors border border-neutral-700">
-                     Answer Follow-Up
-                   </button>
-                 )}
-                 <button onClick={handleNext} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-sm text-white font-medium transition-colors">
-                   Next Question
-                 </button>
-               </div>
+                )}
+
+                <div className="mt-3 flex gap-4 text-xs font-medium">
+                  <span className="bg-black/40 px-2 py-1 rounded">Score: {feedback.correctness}/100</span>
+                  <span className="bg-black/40 px-2 py-1 rounded">Clarity: {feedback.clarity}/100</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 ml-auto shrink-0">
+                {feedback.follow_up_question && (
+                  <button onClick={() => { setFeedback(null); setAnswer(''); }} className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded text-sm text-white font-medium transition-colors border border-neutral-700">
+                    Answer Follow-Up
+                  </button>
+                )}
+                <button onClick={handleNext} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-sm text-white font-medium transition-colors">
+                  Next Question
+                </button>
+              </div>
             </div>
           )}
 

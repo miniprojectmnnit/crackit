@@ -9,45 +9,109 @@ if (!GEMINI_API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-/**
- * Extract interview questions from article text using Gemini.
- */
 async function extractQuestionsWithLLM(text) {
 
   if (!text || text.trim().length === 0) return [];
 
-  // Increase token usage limit significantly
+  // Gemini token safety
   const trimmedText = text.slice(0, 48000);
 
   const prompt = `
-You are an expert interview question extractor.
+================ ROLE =================
 
-TASK:
-Extract EVERY SINGLE interview question, prompt, or technical concept asked during the interview from the article text. Do not miss any question. If the user mentions "I was asked X and Y", extract both X and Y as separate questions.
+You are a senior technical interview analyst.
 
-IGNORE:
-- navigation text
-- advertisements
-- headers
-- explanations
-- company descriptions
+Your job is to extract every interview question that appeared
+during an interview experience article.
 
-CLASSIFY each question as ONE of:
-Coding
-Behavioral
-System Design
-General
+================ TASK =================
 
-OUTPUT FORMAT:
-Return ONLY a JSON array.
+Read the article carefully and extract ALL interview questions.
+
+A question can appear in many forms such as:
+
+• Direct question asked by interviewer
+• Coding challenge described in text
+• Multiple questions mentioned in a sentence
+• A prompt describing a task the candidate had to solve
 
 Example:
-[
-  {"question_text":"Reverse a linked list.","type":"Coding"},
-  {"question_text":"Tell me about a challenge you faced.","type":"Behavioral"}
-]
 
-Article:
+"I was asked to reverse a linked list and also find the middle element."
+
+Should produce TWO questions:
+- Reverse a linked list
+- Find the middle element of a linked list
+
+================ WHAT TO EXTRACT =================
+
+Extract ONLY:
+
+• coding questions
+• algorithm problems
+• system design questions
+• behavioral questions
+• conceptual technical questions
+
+================ WHAT TO IGNORE =================
+
+Ignore the following content:
+
+• article headers
+• navigation elements
+• company introductions
+• candidate commentary
+• explanations of solutions
+• preparation advice
+• unrelated storytelling
+
+================ CLASSIFICATION RULES =================
+
+Each question must be classified into ONE category:
+
+Coding
+Algorithm or data structure problems.
+
+Behavioral
+Questions about teamwork, challenges, leadership, etc.
+
+System Design
+Questions about designing large systems, architectures, scalability.
+
+General
+Conceptual technical questions (OS, networking, DB, etc).
+
+================ EXTRACTION RULES =================
+
+Ensure that:
+
+• Each question is extracted separately.
+• Questions are written clearly and concisely.
+• Do NOT include answer explanations.
+• Do NOT merge multiple questions into one.
+
+If the article explicitly lists questions, extract ALL of them.
+
+================ OUTPUT FORMAT =================
+
+Return ONLY a valid JSON array.
+
+Each element must follow this schema:
+
+{
+  "question_text": string,
+  "type": "Coding" | "Behavioral" | "System Design" | "General"
+}
+
+Important rules:
+
+• DO NOT include markdown
+• DO NOT include explanations
+• DO NOT include text outside JSON
+• Output must be valid JSON
+
+================ ARTICLE =================
+
 ${trimmedText}
 `;
 
@@ -63,13 +127,11 @@ ${trimmedText}
 
     let output = response.text || "";
 
-    // Remove markdown if LLM adds it
     output = output
       .replace(/```json/g, "")
       .replace(/```/g, "")
       .trim();
 
-    // Extract JSON safely
     const jsonStart = output.indexOf("[");
     const jsonEnd = output.lastIndexOf("]");
 
@@ -79,12 +141,10 @@ ${trimmedText}
     }
 
     const jsonString = output.substring(jsonStart, jsonEnd + 1);
-
     const parsed = JSON.parse(jsonString);
 
     if (!Array.isArray(parsed)) return [];
 
-    // Validate objects
     const cleaned = parsed
       .filter(q => q.question_text)
       .map(q => ({
@@ -98,7 +158,7 @@ ${trimmedText}
 
     console.error("Gemini extraction failed:", err.message);
 
-    return []; // fail gracefully
+    return [];
   }
 }
 
