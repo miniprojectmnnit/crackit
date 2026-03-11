@@ -1,19 +1,92 @@
 const { ai } = require("../utils/geminiClient");
 
 async function generateTestCases(questionText, description) {
+
   const prompt = `
-You are an expert software tester for algorithmic problems.
-Given the coding problem below, generate 5 comprehensive test cases, including typical cases and edge cases.
+================ ROLE =================
+You are a senior software tester responsible for designing test cases
+for coding interview problems.
 
-Question: "${questionText}"
-Description: "${description}"
+Your goal is to generate test cases that thoroughly validate a candidate's solution.
 
-Return ONLY a valid JSON array of objects with these keys:
-- input: string
-- expected_output: string
+================ PROBLEM =================
 
-Ensure the inputs and outputs are formatted consistently as strings representing exactly what a program would receive and return.
-Do NOT include any markdown block wrappers (like \`\`\`json). Just the JSON array.
+Question:
+"${questionText}"
+
+Description:
+"${description}"
+
+================ TEST CASE STRATEGY =================
+
+Generate EXACTLY 5 test cases.
+
+The test cases must include:
+
+1. Basic Case
+   - A simple example demonstrating the core functionality.
+
+2. Typical Case
+   - A realistic input showing normal usage.
+
+3. Edge Case
+   - Boundary conditions such as:
+     • empty input
+     • smallest possible input
+     • duplicate values
+     • negative numbers
+     • single element
+
+4. Large Case
+   - A bigger input to simulate performance constraints.
+
+5. Tricky Case
+   - A scenario that might break incorrect implementations.
+
+================ INPUT / OUTPUT FORMAT =================
+
+Each test case must contain:
+
+input:
+A string representing the exact parameters passed to the function.
+
+Examples:
+"[1,2,3]"
+"nums=[1,2,3], target=4"
+"[[1,2],[3,4]]"
+
+expected_output:
+The exact output that the correct algorithm should return.
+
+Both input and expected_output must be strings.
+
+================ VALIDATION RULES =================
+
+Ensure that:
+
+• All test cases are different.
+• The expected output is logically correct.
+• Inputs are realistic and consistent with the problem description.
+
+================ OUTPUT FORMAT (STRICT) =================
+
+Return ONLY a JSON array with EXACTLY 5 objects.
+
+Each object must follow this schema:
+
+{
+  "input": string,
+  "expected_output": string
+}
+
+Important rules:
+
+• DO NOT include markdown
+• DO NOT include explanations
+• DO NOT include extra text
+• Output must be valid JSON
+
+Return the JSON array now.
 `;
 
   try {
@@ -25,13 +98,16 @@ Do NOT include any markdown block wrappers (like \`\`\`json). Just the JSON arra
 
     let output = response.text || "";
     output = output.replace(/```json/g, "").replace(/```/g, "").trim();
-    
+
     const jsonStart = output.indexOf("[");
     const jsonEnd = output.lastIndexOf("]");
+
     if (jsonStart !== -1 && jsonEnd !== -1) {
       return JSON.parse(output.substring(jsonStart, jsonEnd + 1));
     }
+
     return [];
+
   } catch (error) {
     console.error("TestCaseAgent Error:", error.message);
     return [];
