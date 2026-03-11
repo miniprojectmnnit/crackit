@@ -1,5 +1,6 @@
 require("dotenv").config();
 const { GoogleGenAI } = require("@google/genai");
+const log = require("./logger");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -11,10 +12,16 @@ const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 async function extractQuestionsWithLLM(text) {
 
-  if (!text || text.trim().length === 0) return [];
+  if (!text || text.trim().length === 0) {
+    log.warn("LLM", "Empty text received — skipping extraction");
+    return [];
+  }
 
   // Gemini token safety
   const trimmedText = text.slice(0, 48000);
+  const wasTrimmed = text.length > 48000;
+
+  log.info("LLM", `🤖 Calling Gemini for question extraction (text: ${trimmedText.length} chars${wasTrimmed ? ', TRIMMED from ' + text.length : ''})`);
 
   const prompt = `
 ================ ROLE =================
@@ -127,6 +134,8 @@ ${trimmedText}
 
     let output = response.text || "";
 
+    log.info("LLM", `📨 Received LLM response (${output.length} chars)`);
+
     output = output
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -136,14 +145,17 @@ ${trimmedText}
     const jsonEnd = output.lastIndexOf("]");
 
     if (jsonStart === -1 || jsonEnd === -1) {
-      console.warn("LLM returned invalid JSON");
+      log.warn("LLM", "LLM returned invalid JSON — no array brackets found");
       return [];
     }
 
     const jsonString = output.substring(jsonStart, jsonEnd + 1);
     const parsed = JSON.parse(jsonString);
 
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      log.warn("LLM", "Parsed output is not an array");
+      return [];
+    }
 
     const cleaned = parsed
       .filter(q => q.question_text)
@@ -152,11 +164,13 @@ ${trimmedText}
         type: q.type || "General"
       }));
 
+    log.success("LLM", `✅ Extracted ${cleaned.length} questions (${cleaned.filter(q => q.type === 'Coding').length} Coding, ${cleaned.filter(q => q.type === 'Behavioral').length} Behavioral, ${cleaned.filter(q => q.type === 'System Design').length} System Design, ${cleaned.filter(q => q.type === 'General').length} General)`);
+
     return cleaned;
 
   } catch (err) {
 
-    console.error("Gemini extraction failed:", err.message);
+    log.error("LLM", `Gemini extraction failed: ${err.message}`);
 
     return [];
   }

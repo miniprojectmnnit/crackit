@@ -7,9 +7,13 @@ const {
   executeCodingAnswer,
   getSession
 } = require("../controllers/interviewController");
+const { getLiveToken } = require("../controllers/liveTokenController");
 
 // Basic questions retrieval
 router.get("/questions", getQuestionsForUrl);
+
+// Gemini Live API token
+router.get("/live-token", getLiveToken);
 
 // Session endpoints
 router.post("/session", createSession);

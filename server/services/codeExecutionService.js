@@ -2,12 +2,16 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const crypto = require("crypto");
+const log = require("../utils/logger");
 
 function executeCode(code, testCases) {
   return new Promise((resolve) => {
 
     const id = crypto.randomUUID();
     const tempFile = path.join(__dirname, `../temp_exec_${id}.js`);
+
+    log.info("CODE_EXEC", `🏃 Starting code execution — ${testCases.length} test cases, code: ${code.length} chars`);
+    log.debug("CODE_EXEC", `📄 Temp file: temp_exec_${id}.js`);
 
     const wrapper = `
 "use strict";
@@ -94,7 +98,9 @@ runTests();
 
     try {
       fs.writeFileSync(tempFile, wrapper);
+      log.debug("CODE_EXEC", `📄 Temp file written successfully`);
     } catch (err) {
+      log.error("CODE_EXEC", `Failed to write temp file: ${err.message}`);
       return resolve({
         passed: 0,
         failed: testCases.length,
@@ -109,10 +115,12 @@ runTests();
       (error, stdout, stderr) => {
 
         try { fs.unlinkSync(tempFile); } catch { }
+        log.debug("CODE_EXEC", `🧹 Temp file cleaned up`);
 
         if (error) {
 
           if (error.killed) {
+            log.warn("CODE_EXEC", `⏱️ Execution timed out (3s limit)`);
             return resolve({
               passed: 0,
               failed: testCases.length,
@@ -120,6 +128,7 @@ runTests();
             });
           }
 
+          log.error("CODE_EXEC", `Execution error: ${stderr || stdout || error.message}`);
           return resolve({
             passed: 0,
             failed: testCases.length,
@@ -129,8 +138,10 @@ runTests();
 
         try {
           const parsed = JSON.parse(stdout.trim());
+          log.success("CODE_EXEC", `✅ Execution complete — passed: ${parsed.passed}, failed: ${parsed.failed}`);
           resolve(parsed);
         } catch {
+          log.error("CODE_EXEC", `Failed to parse execution output: ${stdout}`);
           resolve({
             passed: 0,
             failed: testCases.length,

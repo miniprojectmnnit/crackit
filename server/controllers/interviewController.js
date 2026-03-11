@@ -3,18 +3,25 @@ const Question = require("../models/Question");
 const Page = require("../models/Page");
 const { evaluateAnswer } = require("../agents/evaluateAgent");
 const { executeCode } = require("../services/codeExecutionService");
+const log = require("../utils/logger");
 
 exports.getQuestionsForUrl = async (req, res) => {
   try {
     const { url } = req.query;
+    log.info("INTERVIEW", `📋 Fetching questions for URL: ${url}`);
+
     if (!url) return res.status(400).json({ error: "URL is required" });
 
     const page = await Page.findOne({ page_url: url }).populate("question_ids");
-    if (!page) return res.status(404).json({ error: "No questions found for this URL" });
+    if (!page) {
+      log.warn("INTERVIEW", `No page found for URL: ${url}`);
+      return res.status(404).json({ error: "No questions found for this URL" });
+    }
 
+    log.success("INTERVIEW", `✅ Returning ${page.question_ids.length} questions for ${url}`);
     res.json(page.question_ids);
   } catch (err) {
-    console.error(err);
+    log.error("INTERVIEW", `Failed to fetch questions: ${err.message}`, err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -22,8 +29,8 @@ exports.getQuestionsForUrl = async (req, res) => {
 exports.createSession = async (req, res) => {
   try {
     const { user_id, source_url } = req.body;
+    log.info("SESSION", `🆕 Creating interview session — user: ${user_id || 'anonymous'}, url: ${source_url}`);
     
-    // For now we'll mock user_id if Clerk isn't strictly passing it yet
     const session = new InterviewSession({
       user_id: user_id || "anonymous_user",
       source_url,
@@ -32,9 +39,10 @@ exports.createSession = async (req, res) => {
     });
 
     await session.save();
+    log.success("SESSION", `✅ Session created — ID: ${session._id}`);
     res.status(201).json(session);
   } catch (err) {
-    console.error(err);
+    log.error("SESSION", `Failed to create session: ${err.message}`, err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -44,14 +52,30 @@ exports.evaluateQuestion = async (req, res) => {
     const { id } = req.params;
     const { question_id, answer } = req.body;
 
+    log.info("EVALUATE", `📝 Evaluating answer — session: ${id}, question: ${question_id}`);
+    log.info("EVALUATE", `📝 Answer length: ${answer ? answer.length : 0} chars`);
+
     const session = await InterviewSession.findById(id);
-    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (!session) {
+      log.warn("EVALUATE", `Session not found: ${id}`);
+      return res.status(404).json({ error: "Session not found" });
+    }
 
     const question = await Question.findById(question_id);
-    if (!question) return res.status(404).json({ error: "Question not found" });
+    if (!question) {
+      log.warn("EVALUATE", `Question not found: ${question_id}`);
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    log.info("EVALUATE", `🤖 Calling evaluateAgent — question type: ${question.type}, text: "${question.question_text.substring(0, 60)}..."`);
 
     // evaluate
     const evaluation = await evaluateAnswer(question, answer, question.solution);
+
+    log.success("EVALUATE", `✅ Evaluation complete — correctness: ${evaluation?.correctness}, clarity: ${evaluation?.clarity}, problem_solving: ${evaluation?.problem_solving}`);
+    if (evaluation?.follow_up_question) {
+      log.info("EVALUATE", `🔄 Follow-up question: "${evaluation.follow_up_question.substring(0, 80)}..."`);
+    }
 
     // Save to session
     session.questions.push({
@@ -69,10 +93,11 @@ exports.evaluateQuestion = async (req, res) => {
     session.total_score = totalScores / session.questions.length;
 
     await session.save();
+    log.success("EVALUATE", `💾 Session updated — total score: ${session.total_score.toFixed(1)}, questions answered: ${session.questions.length}`);
 
     res.json({ evaluation, session });
   } catch (err) {
-    console.error(err);
+    log.error("EVALUATE", `Evaluation failed: ${err.message}`, err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -82,30 +107,44 @@ exports.executeCodingAnswer = async (req, res) => {
     const { id } = req.params;
     const { question_id, code } = req.body;
 
+    log.info("EXECUTE", `🏃 Code execution request — session: ${id}, question: ${question_id}`);
+    log.info("EXECUTE", `📝 Code length: ${code ? code.length : 0} chars`);
+
     const session = await InterviewSession.findById(id);
     const question = await Question.findById(question_id);
 
-    if (!session || !question) return res.status(404).json({ error: "Not found" });
+    if (!session || !question) {
+      log.warn("EXECUTE", `Not found — session: ${!!session}, question: ${!!question}`);
+      return res.status(404).json({ error: "Not found" });
+    }
 
     const testCases = question.test_cases || [];
+    log.info("EXECUTE", `🧪 Running ${testCases.length} test cases...`);
 
     const result = await executeCode(code, testCases);
 
+    log.success("EXECUTE", `✅ Execution complete — passed: ${result.passed}, failed: ${result.failed}${result.error ? ', error: ' + result.error : ''}`);
+
     res.json(result);
   } catch (err) {
-    console.error(err);
+    log.error("EXECUTE", `Code execution failed: ${err.message}`, err);
     res.status(500).json({ error: "Server error" });
   }
 };
 
 exports.getSession = async (req, res) => {
   try {
+    log.info("SESSION", `📋 Fetching session: ${req.params.id}`);
     const session = await InterviewSession.findById(req.params.id).populate("questions.question_id");
-    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (!session) {
+      log.warn("SESSION", `Session not found: ${req.params.id}`);
+      return res.status(404).json({ error: "Session not found" });
+    }
     
+    log.success("SESSION", `✅ Session retrieved — ${session.questions.length} questions, score: ${session.total_score || 'N/A'}`);
     res.json(session);
   } catch (err) {
-    console.error(err);
+    log.error("SESSION", `Failed to fetch session: ${err.message}`, err);
     res.status(500).json({ error: "Server error" });
   }
 };
