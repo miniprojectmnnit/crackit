@@ -22,6 +22,9 @@ const InterviewSimulation = () => {
     feedback,
     execResult,
     isEvaluating,
+    isListening,
+    isSpeechSupported,
+    toggleListening,
     setCode,
     setAnswer,
     handleNext,
@@ -77,6 +80,9 @@ const InterviewSimulation = () => {
                 onAnswerChange={setAnswer}
                 onSubmit={submitAnswer}
                 isEvaluating={isEvaluating}
+                isListening={isListening}
+                isSpeechSupported={isSpeechSupported}
+                onToggleListening={toggleListening}
               />
             )}
           </div>

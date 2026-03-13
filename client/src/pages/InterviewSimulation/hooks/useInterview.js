@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { generateCodeTemplate } from '../utils/codeTemplate';
 import useGeminiVoice from './useGeminiVoice';
+import useSpeechRecognition from './useSpeechRecognition';
 
 const DEFAULT_CODE = '// Write your solution here...';
 
 /**
  * Custom hook encapsulating all interview simulation logic:
  * session creation, question fetching, answer submission, code execution,
- * text-to-speech, and navigation between questions.
+ * text-to-speech, speech-to-text, and navigation between questions.
  */
 const useInterview = () => {
   const [searchParams] = useSearchParams();
@@ -31,7 +32,63 @@ const useInterview = () => {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [interviewFinished, setInterviewFinished] = useState(false);
 
+  // Refs for debouncing mic start and tracking answer
+  const micTimerRef = useRef(null);
+  const answerRef = useRef('');
+
+  // Keep answerRef in sync with answer state
+  useEffect(() => {
+    answerRef.current = answer;
+  }, [answer]);
+
+  // Speech recognition — transcribes voice into the answer field
+  const handleTranscript = useCallback((text) => {
+    console.log(`[INTERVIEW] 🎤 Transcript update (${text.length} chars)`);
+    setAnswer(text);
+  }, []);
+
+  const {
+    isListening,
+    isSupported: isSpeechSupported,
+    startListening,
+    stopListening,
+    toggleListening,
+    resetTranscript,
+  } = useSpeechRecognition(handleTranscript);
+
   const currentQuestion = questions[currentIndex];
+
+  // --- DEBOUNCED mic start: wait for isSpeaking to stay false for 1.2s ---
+  useEffect(() => {
+    // Clear any pending mic start timer
+    if (micTimerRef.current) {
+      clearTimeout(micTimerRef.current);
+      micTimerRef.current = null;
+    }
+
+    if (isSpeaking) {
+      // AI is speaking — STOP mic immediately to avoid recording AI's voice
+      if (isListening) {
+        console.log('[INTERVIEW] 🔇 Stopping mic — AI is speaking');
+        stopListening();
+      }
+    } else {
+      // AI stopped speaking — wait 1.2s before starting mic (debounce flickering)
+      micTimerRef.current = setTimeout(() => {
+        if (!isSpeaking && !isListening) {
+          console.log('[INTERVIEW] 🎤 AI done speaking — auto-starting mic for your response');
+          resetTranscript();
+          startListening();
+        }
+      }, 1200);
+    }
+
+    return () => {
+      if (micTimerRef.current) {
+        clearTimeout(micTimerRef.current);
+      }
+    };
+  }, [isSpeaking]);
 
   // --- Initialization ---
   useEffect(() => {
@@ -77,6 +134,12 @@ const useInterview = () => {
   useEffect(() => {
     if (currentQuestion) {
       console.log(`[INTERVIEW] 📝 Question ${currentIndex + 1}/${questions.length} — [${currentQuestion.type}] "${currentQuestion.question_text.substring(0, 60)}..."`);
+
+      // Stop any ongoing mic before AI speaks new question
+      stopListening();
+      resetTranscript();
+      setAnswer('');
+
       speak(currentQuestion.question_text);
 
       if (currentQuestion.type === 'Coding') {
@@ -88,9 +151,57 @@ const useInterview = () => {
     }
   }, [currentIndex, currentQuestion]);
 
-  // --- Navigation ---
-  const handleNext = () => {
+  // --- Internal submit function (used by handleNext too) ---
+  const _submitAnswerInternal = async (answerContent, questionToEval) => {
+    if (!session || !questionToEval || !answerContent || !answerContent.trim()) return null;
+
+    const answerType = questionToEval.type === 'Coding' ? 'code' : 'text';
+    console.log(`[INTERVIEW] 📤 Submitting ${answerType} answer (${answerContent.length} chars)`);
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/interviews/session/${session._id}/evaluate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question_id: questionToEval._id,
+          answer: answerContent
+        })
+      });
+      const data = await res.json();
+      console.log(`[INTERVIEW] ✅ Evaluation — correctness: ${data.evaluation?.correctness}, clarity: ${data.evaluation?.clarity}, problem_solving: ${data.evaluation?.problem_solving}`);
+      return data;
+    } catch (err) {
+      console.error('[INTERVIEW] ❌ Submit failed:', err);
+      return null;
+    }
+  };
+
+  // --- Navigation (auto-submits if there's an answer) ---
+  const handleNext = async () => {
     stop();
+    stopListening();
+    if (micTimerRef.current) {
+      clearTimeout(micTimerRef.current);
+      micTimerRef.current = null;
+    }
+
+    // Auto-submit the current answer before moving on
+    const currentAnswer = currentQuestion?.type === 'Coding' ? code : answerRef.current;
+    if (currentAnswer && currentAnswer.trim() && currentQuestion && !feedback) {
+      console.log('[INTERVIEW] 📤 Auto-submitting answer before moving to next question...');
+      setIsEvaluating(true);
+      const data = await _submitAnswerInternal(currentAnswer, currentQuestion);
+      if (data?.evaluation) {
+        setFeedback(data.evaluation);
+        // Don't auto-navigate — let user see feedback first
+        setIsEvaluating(false);
+        console.log('[INTERVIEW] ✅ Answer auto-submitted. Review feedback, then click Next again.');
+        return;
+      }
+      setIsEvaluating(false);
+    }
+
+    resetTranscript();
     if (currentIndex < questions.length - 1) {
       console.log(`[INTERVIEW] ➡️ Moving to next question (${currentIndex + 1} → ${currentIndex + 2})`);
       setCurrentIndex(currentIndex + 1);
@@ -104,37 +215,31 @@ const useInterview = () => {
     }
   };
 
-  // --- Answer Submission ---
+  // --- Explicit Answer Submission ---
   const submitAnswer = async () => {
     if (!session || !currentQuestion) return;
+    stopListening();
+    if (micTimerRef.current) {
+      clearTimeout(micTimerRef.current);
+      micTimerRef.current = null;
+    }
     setIsEvaluating(true);
-    const answerType = currentQuestion.type === 'Coding' ? 'code' : 'text';
+
     const answerContent = currentQuestion.type === 'Coding' ? code : answer;
-    console.log(`[INTERVIEW] 📤 Submitting ${answerType} answer (${answerContent.length} chars) for question ${currentIndex + 1}`);
-    try {
-      const res = await fetch(`http://localhost:5000/api/interviews/session/${session._id}/evaluate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question_id: currentQuestion._id,
-          answer: answerContent
-        })
-      });
-      const data = await res.json();
+    const data = await _submitAnswerInternal(answerContent, currentQuestion);
+
+    if (data?.evaluation) {
       setFeedback(data.evaluation);
-      console.log(`[INTERVIEW] ✅ Evaluation received — correctness: ${data.evaluation?.correctness}, clarity: ${data.evaluation?.clarity}, problem_solving: ${data.evaluation?.problem_solving}`);
 
       // Auto-speak the AI's feedback
-      if (data.evaluation && data.evaluation.feedback) {
+      if (data.evaluation.feedback) {
         let msg = data.evaluation.feedback;
         if (data.evaluation.follow_up_question) {
           msg += " " + data.evaluation.follow_up_question;
-          console.log(`[INTERVIEW] 🔄 Follow-up question received: "${data.evaluation.follow_up_question.substring(0, 60)}..."`);
+          console.log(`[INTERVIEW] 🔄 Follow-up: "${data.evaluation.follow_up_question.substring(0, 60)}..."`);
         }
         speak(msg);
       }
-    } catch (err) {
-      console.error('[INTERVIEW] ❌ Answer submission failed:', err);
     }
     setIsEvaluating(false);
   };
@@ -155,7 +260,7 @@ const useInterview = () => {
       });
       const data = await res.json();
       setExecResult(data);
-      console.log(`[INTERVIEW] ✅ Code execution result — passed: ${data.passed}, failed: ${data.failed}${data.error ? ', error: ' + data.error : ''}`);
+      console.log(`[INTERVIEW] ✅ Code execution — passed: ${data.passed}, failed: ${data.failed}${data.error ? ', error: ' + data.error : ''}`);
     } catch (err) {
       console.error('[INTERVIEW] ❌ Code execution failed:', err);
       setExecResult({ passed: 0, failed: 1, total: 1, log: "Execution failed to reach server." });
@@ -166,6 +271,7 @@ const useInterview = () => {
   // --- Follow-up handler ---
   const handleAnswerFollowUp = () => {
     console.log('[INTERVIEW] 🔄 Answering follow-up question');
+    resetTranscript();
     setFeedback(null);
     setAnswer('');
   };
@@ -183,6 +289,11 @@ const useInterview = () => {
     feedback,
     execResult,
     isEvaluating,
+
+    // Voice input
+    isListening,
+    isSpeechSupported,
+    toggleListening,
 
     // Setters
     setCode,
