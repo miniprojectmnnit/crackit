@@ -14,26 +14,26 @@ const Home = () => {
     const cards = [
         {
             id: "resume",
-            title: "Resume Round",
-            description: "Craft the perfect first impression. Build a standout resume optimized for ATS and recruiters.",
+            title: "Resume Mock Interview",
+            description: "Upload your resume and practice a personalized, AI-driven mock interview tailored to your skills.",
             icon: <FileText className="h-7 w-7" />,
-            route: "/resume",
+            route: "/resume-upload",
             delay: 0.1
         },
         {
             id: "coding",
-            title: "Coding Round",
-            description: "Sharpen problem-solving skills. Practice DSA and system design to crack technical rounds.",
+            title: "Coding Extension",
+            description: "Use our Chrome extension to seamlessly extract coding questions from any platform and simulate real technical rounds.",
             icon: <Code className="h-7 w-7" />,
-            route: "/coding",
+            route: "/", 
             delay: 0.2
         },
         {
-            id: "behavioral",
-            title: "Behavioral Round",
-            description: "Master communication and culture-fit questions with our AI-powered dialogue scenarios.",
+            id: "feed",
+            title: "Interview History",
+            description: "Track your progress. Review full transcripts, AI feedback, and scores from all your past interviews.",
             icon: <Users className="h-7 w-7" />,
-            route: "/behavioral",
+            route: "/feed",
             delay: 0.3
         },
     ];
@@ -84,13 +84,16 @@ const Home = () => {
 
                         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <button 
-                                onClick={() => navigate('/login')}
+                                onClick={() => navigate('/resume-upload')}
                                 className="w-full sm:w-auto px-8 py-4 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-500 text-black font-bold text-lg hover:shadow-[0_0_25px_rgba(6,182,212,0.6)] transition-all transform hover:scale-105"
                             >
                                 Start Mock Interview
                             </button>
-                            <button className="w-full sm:w-auto px-8 py-4 rounded-full glass font-medium text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
-                                <BrainCircuit className="w-5 h-5" /> How it works
+                            <button 
+                              onClick={() => navigate('/feed')}
+                              className="w-full sm:w-auto px-8 py-4 rounded-full glass font-medium text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <BrainCircuit className="w-5 h-5" /> View Progress
                             </button>
                         </motion.div>
                     </motion.div>

@@ -1,6 +1,5 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { UserButton, SignedIn, SignedOut } from "@clerk/clerk-react";
 import { motion } from "framer-motion";
 
 const Navbar = () => {
@@ -23,25 +22,14 @@ const Navbar = () => {
 
         {/* Navigation Links (if needed in the future) */}
         <nav className="hidden md:flex items-center gap-8">
-          <Link to="/features" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Features</Link>
-          <Link to="/practice" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Practice</Link>
-          <Link to="/resources" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Resources</Link>
+          <Link to="/resume-upload" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Resume Interview</Link>
+          <Link to="/feed" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors flex items-center gap-1">History feed</Link>
         </nav>
 
         {/* User / Auth section */}
         <div className="flex items-center gap-4">
-          <SignedIn>
-            <UserButton 
-              appearance={{
-                elements: {
-                  avatarBox: "w-9 h-9 border border-cyan-500/30"
-                }
-              }}
-            />
-          </SignedIn>
-          <SignedOut>
             <Link to="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors px-4 py-2">
-              Sign In
+              Login
             </Link>
             <Link 
               to="/register" 
@@ -49,7 +37,6 @@ const Navbar = () => {
             >
               Get Started
             </Link>
-          </SignedOut>
         </div>
       </div>
     </header>

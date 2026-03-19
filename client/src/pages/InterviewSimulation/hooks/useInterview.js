@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
+import { toast } from "react-hot-toast";
 import { generateCodeTemplate } from '../utils/codeTemplate';
 import useGeminiVoice from './useGeminiVoice';
 import useSpeechRecognition from './useSpeechRecognition';
@@ -12,16 +12,16 @@ const DEFAULT_CODE = '// Write your solution here...';
  * session creation, question fetching, answer submission, code execution,
  * text-to-speech, speech-to-text, and navigation between questions.
  */
-const useInterview = () => {
+export const useInterview = (initialSessionId) => {
   const [searchParams] = useSearchParams();
   const url = searchParams.get('url');
-  const { user } = useAuth();
+  const resumeId = searchParams.get('resumeId');
   const { speak, stop, isSpeaking, isConnected } = useGeminiVoice();
 
   // Core state
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [session, setSession] = useState(null);
+  const [sessionData, setSessionData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Interaction state
@@ -92,10 +92,12 @@ const useInterview = () => {
 
   // --- Initialization ---
   useEffect(() => {
-    if (url) {
+    if (initialSessionId) {
+      loadSession(initialSessionId);
+    } else if (url || resumeId) {
       initInterview();
     }
-  }, [url]);
+  }, [url, resumeId, initialSessionId]);
 
   const initInterview = async () => {
     setLoading(true);
@@ -103,44 +105,94 @@ const useInterview = () => {
     try {
       // 1. Create Session
       console.log('[INTERVIEW] 📋 Creating session...');
-      const sessRes = await fetch('http://localhost:5000/api/interviews/session', {
+      const res = await fetch('http://localhost:5000/api/interviews/session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user?.id || 'anonymous', source_url: url })
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          source_url: url,
+          resume_id: resumeId,
+          question_count: 10,
+          user_id: localStorage.getItem("user_id") || "mock_user_123"
+        })
       });
-      const sessData = await sessRes.json();
-      setSession(sessData);
-      console.log('[INTERVIEW] ✅ Session created — ID:', sessData._id);
 
-      // 2. Fetch Questions
-      console.log('[INTERVIEW] 📋 Fetching questions...');
-      const objRes = await fetch(`http://localhost:5000/api/interviews/questions?url=${encodeURIComponent(url)}`);
-      if (!objRes.ok) throw new Error("Failed to load questions");
+      if (!res.ok) {
+        toast.error("Failed to create session");
+        setLoading(false);
+        return;
+      }
+      const sessionResponse = await res.json();
+      setSessionData(sessionResponse);
+      console.log('[INTERVIEW] ✅ Session created — ID:', sessionResponse._id);
 
-      const populatedQuestions = await objRes.json();
+      // 2. Fetch Questions (Wait, if using resumeId, questions are returned in the session obj)
+      // Actually, we need to adapt here: When using resume_id, createSession generates questions
+      //, but the return doesn't return the populated questions directly, it returns the session.
+      // So let's fetch session with populated questions from getSession to be sure.
+      console.log('[INTERVIEW] 📋 Fetching session questions...');
+      const objRes = await fetch(`http://localhost:5000/api/interviews/session/${sessionResponse._id}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!objRes.ok) {
+        toast.error("Failed to load questions");
+        setLoading(false);
+        return;
+      }
+
+      const sessionPopulated = await objRes.json();
+      const populatedQuestions = sessionPopulated.questions.map(q => q.question_id);
+      
       setQuestions(populatedQuestions);
       console.log(`[INTERVIEW] ✅ Loaded ${populatedQuestions.length} questions`);
       populatedQuestions.forEach((q, i) => {
-        console.log(`[INTERVIEW]   Q${i + 1}: [${q.type}] ${q.question_text.substring(0, 60)}...`);
+        console.log(`[INTERVIEW]   Q${i + 1}: [${q?.type}] ${q?.question_text?.substring(0, 60)}...`);
       });
     } catch (err) {
       console.error('[INTERVIEW] ❌ Init failed:', err);
+      toast.error("Interview initialization failed.");
     }
     setLoading(false);
     console.log('[INTERVIEW] 🏁 Interview initialization complete');
   };
 
+  const loadSession = async (sessionId) => {
+    setLoading(true);
+    console.log(`[INTERVIEW] 🚀 Loading existing session: ${sessionId}`);
+    try {
+      const res = await fetch(`http://localhost:5000/api/interviews/session/${sessionId}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        toast.error("Failed to load session info");
+        setLoading(false);
+        return;
+      }
+      const sessionPopulated = await res.json();
+      setSessionData(sessionPopulated);
+      const populatedQuestions = sessionPopulated.questions.map(q => q.question_id);
+      setQuestions(populatedQuestions);
+      console.log(`[INTERVIEW] ✅ Loaded ${populatedQuestions.length} questions for session ${sessionId}`);
+    } catch (err) {
+      console.error('[INTERVIEW] ❌ Load session failed:', err);
+      toast.error("Failed to load existing session.");
+    }
+    setLoading(false);
+    console.log('[INTERVIEW] 🏁 Session loading complete');
+  };
+
   // --- Setup code template & TTS when question changes ---
   useEffect(() => {
     if (currentQuestion) {
-      console.log(`[INTERVIEW] 📝 Question ${currentIndex + 1}/${questions.length} — [${currentQuestion.type}] "${currentQuestion.question_text.substring(0, 60)}..."`);
+      console.log(`[INTERVIEW] 📝 Question ${currentIndex + 1}/${questions.length} — [${currentQuestion?.type}] "${currentQuestion?.question_text?.substring(0, 60)}..."`);
 
       // Stop any ongoing mic before AI speaks new question
       stopListening();
       resetTranscript();
       setAnswer('');
 
-      speak(currentQuestion.question_text);
+      speak(currentQuestion?.question_text || "");
 
       if (currentQuestion.type === 'Coding') {
         console.log('[INTERVIEW] 💻 Generated code template for coding question');
@@ -153,18 +205,21 @@ const useInterview = () => {
 
   // --- Internal submit function (used by handleNext too) ---
   const _submitAnswerInternal = async (answerContent, questionToEval) => {
-    if (!session || !questionToEval || !answerContent || !answerContent.trim()) return null;
+    if (!sessionData || !questionToEval || !answerContent || !answerContent.trim()) return null;
 
     const answerType = questionToEval.type === 'Coding' ? 'code' : 'text';
     console.log(`[INTERVIEW] 📤 Submitting ${answerType} answer (${answerContent.length} chars)`);
 
     try {
-      const res = await fetch(`http://localhost:5000/api/interviews/session/${session._id}/evaluate`, {
+      const res = await fetch(`http://localhost:5000/api/interviews/session/${sessionData._id}/evaluate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           question_id: questionToEval._id,
-          answer: answerContent
+          answer: answerContent,
+          user_id: localStorage.getItem("user_id") || "mock_user_123"
         })
       });
       const data = await res.json();
@@ -172,6 +227,7 @@ const useInterview = () => {
       return data;
     } catch (err) {
       console.error('[INTERVIEW] ❌ Submit failed:', err);
+      toast.error("Answer submission failed.");
       return null;
     }
   };
@@ -217,7 +273,7 @@ const useInterview = () => {
 
   // --- Explicit Answer Submission ---
   const submitAnswer = async () => {
-    if (!session || !currentQuestion) return;
+    if (!sessionData || !currentQuestion) return;
     stopListening();
     if (micTimerRef.current) {
       clearTimeout(micTimerRef.current);
@@ -246,23 +302,31 @@ const useInterview = () => {
 
   // --- Code Execution ---
   const runCode = async () => {
-    if (!session || !currentQuestion) return;
+    if (!sessionData || !currentQuestion) return;
     setIsEvaluating(true);
     console.log(`[INTERVIEW] 🏃 Running code (${code.length} chars) for question ${currentIndex + 1}`);
     try {
-      const res = await fetch(`http://localhost:5000/api/interviews/session/${session._id}/execute`, {
+      const res = await fetch(`http://localhost:5000/api/interviews/session/${sessionData._id}/execute`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           question_id: currentQuestion._id,
-          code
+          code,
+          user_id: localStorage.getItem("user_id") || "mock_user_123"
         })
       });
+
+      if (!res.ok) {
+        throw new Error("Failed to execute code");
+      }
       const data = await res.json();
       setExecResult(data);
       console.log(`[INTERVIEW] ✅ Code execution — passed: ${data.passed}, failed: ${data.failed}${data.error ? ', error: ' + data.error : ''}`);
     } catch (err) {
       console.error('[INTERVIEW] ❌ Code execution failed:', err);
+      toast.error("Code execution failed.");
       setExecResult({ passed: 0, failed: 1, total: 1, log: "Execution failed to reach server." });
     }
     setIsEvaluating(false);

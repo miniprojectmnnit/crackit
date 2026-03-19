@@ -1,5 +1,5 @@
-import React from 'react';
-import InterviewReport from '../../components/InterviewReport';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import useInterview from './hooks/useInterview';
 
 import InterviewHeader from './components/InterviewHeader';
@@ -10,6 +10,7 @@ import TextAnswer from './components/TextAnswer';
 import FeedbackOverlay from './components/FeedbackOverlay';
 
 const InterviewSimulation = () => {
+  const navigate = useNavigate();
   const {
     loading,
     interviewFinished,
@@ -33,13 +34,15 @@ const InterviewSimulation = () => {
     handleAnswerFollowUp,
   } = useInterview();
 
+  useEffect(() => {
+    if (interviewFinished && session?._id) {
+      navigate(`/interview-report/${session._id}`);
+    }
+  }, [interviewFinished, session, navigate]);
+
   if (loading) return <div className="p-10 text-center text-white text-xl">Loading Interview...</div>;
 
-  if (interviewFinished) return (
-    <div className="bg-neutral-950 min-h-screen text-neutral-200">
-      <InterviewReport sessionId={session?._id} />
-    </div>
-  );
+  if (interviewFinished) return <div className="p-10 text-center text-white">Redirecting to report...</div>;
 
   if (!currentQuestion) return <div className="p-10 text-center text-white">No questions found.</div>;
 

@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const interviewSessionSchema = new mongoose.Schema({
   user_id: { type: String, required: true }, // Clerk user ID
   source_url: { type: String },              // The URL they are practicing against
+  resume_id: { type: mongoose.Schema.Types.ObjectId, ref: "ResumeProfile" }, // Reference to resume if applicable
 
   questions: [
     {
