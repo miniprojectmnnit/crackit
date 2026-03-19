@@ -1,7 +1,10 @@
 const InterviewSession = require("../models/InterviewSession");
 const Question = require("../models/Question");
 const Page = require("../models/Page");
+const ResumeProfile = require("../models/ResumeProfile");
 const { evaluateAnswer } = require("../agents/evaluateAgent");
+const { generateInterviewPlan } = require("../agents/interviewPlanAgent");
+const { generateFinalReport } = require("../agents/reportAgent");
 const { executeCode } = require("../services/codeExecutionService");
 const log = require("../utils/logger");
 
@@ -28,18 +31,42 @@ exports.getQuestionsForUrl = async (req, res) => {
 
 exports.createSession = async (req, res) => {
   try {
-    const { user_id, source_url } = req.body;
-    log.info("SESSION", `🆕 Creating interview session — user: ${user_id || 'anonymous'}, url: ${source_url}`);
+    const { source_url, resume_id, question_count = 10 } = req.body;
+    const userId = req.body?.user_id || "mock_user_123";
     
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    log.info("SESSION", `🆕 Creating interview session — user: ${userId}, url: ${source_url}, resume_id: ${resume_id}`);
+    
+    let questions = [];
+
+    if (resume_id) {
+       log.info("SESSION", `📄 Using Resume Profile to generate questions...`);
+       const resumeProfile = await ResumeProfile.findById(resume_id);
+       if (!resumeProfile) {
+         return res.status(404).json({ error: "Resume profile not found" });
+       }
+       // Generate custom questions
+       const questionIds = await generateInterviewPlan(resumeProfile, question_count);
+       questions = questionIds.map(id => ({ question_id: id }));
+    } else if (source_url) {
+      log.info("SESSION", `🌐 Attempting to use existing questions from URL...`);
+      // Optional fallback to basic URL question fetching here if needed
+      // This part could be expanded or removed if URL-based testing is deprecated
+    }
+
     const session = new InterviewSession({
-      user_id: user_id || "anonymous_user",
+      user_id: userId,
       source_url,
-      questions: [],
+      resume_id,
+      questions,
       transcript: []
     });
 
     await session.save();
-    log.success("SESSION", `✅ Session created — ID: ${session._id}`);
+    log.success("SESSION", `✅ Session created — ID: ${session._id} with ${questions.length} questions`);
     res.status(201).json(session);
   } catch (err) {
     log.error("SESSION", `Failed to create session: ${err.message}`, err);
@@ -56,9 +83,10 @@ exports.evaluateQuestion = async (req, res) => {
     log.info("EVALUATE", `📝 Answer length: ${answer ? answer.length : 0} chars`);
 
     const session = await InterviewSession.findById(id);
-    if (!session) {
-      log.warn("EVALUATE", `Session not found: ${id}`);
-      return res.status(404).json({ error: "Session not found" });
+    const authUserId = req.body?.user_id || "mock_user_123";
+    if (!session || session.user_id !== authUserId) {
+      log.warn("EVALUATE", `Session not found or forbidden: ${id}`);
+      return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     }
 
     const question = await Question.findById(question_id);
@@ -67,7 +95,7 @@ exports.evaluateQuestion = async (req, res) => {
       return res.status(404).json({ error: "Question not found" });
     }
 
-    log.info("EVALUATE", `🤖 Calling evaluateAgent — question type: ${question.type}, text: "${question.question_text.substring(0, 60)}..."`);
+    log.info("EVALUATE", `🤖 Calling evaluateAgent — question type: ${question.type}, text: "${question.question_text?.substring(0, 60)}..."`);
 
     // evaluate
     const evaluation = await evaluateAnswer(question, answer, question.solution);
@@ -93,6 +121,30 @@ exports.evaluateQuestion = async (req, res) => {
     session.total_score = totalScores / session.questions.length;
 
     await session.save();
+    
+    // Domain Score Updating Layer
+    if (session.resume_id && question.domain) {
+      log.info("EVALUATE", `📈 Updating Domain Score for ${question.domain} in ResumeProfile`);
+      const resume = await ResumeProfile.findById(session.resume_id);
+      if (resume) {
+        let currentScore = resume.domain_scores.get(question.domain) || 0;
+        let increment = 0.05; // Default incorrect or very poor
+
+        if (evaluation?.correctness >= 80) increment = 0.3;
+        else if (evaluation?.correctness >= 50) increment = 0.15;
+
+        // Apply reasoning bonus if applicable
+        if (evaluation?.problem_solving >= 80) {
+           let logicScore = resume.domain_scores.get("Logical Reasoning") || 0;
+           resume.domain_scores.set("Logical Reasoning", Math.min(10, logicScore + 0.1));
+        }
+
+        resume.domain_scores.set(question.domain, Math.min(10, currentScore + increment));
+        await resume.save();
+        log.success("EVALUATE", `📈 Domain ${question.domain} updated by +${increment} to ${resume.domain_scores.get(question.domain).toFixed(2)}`);
+      }
+    }
+
     log.success("EVALUATE", `💾 Session updated — total score: ${session.total_score.toFixed(1)}, questions answered: ${session.questions.length}`);
 
     res.json({ evaluation, session });
@@ -112,10 +164,11 @@ exports.executeCodingAnswer = async (req, res) => {
 
     const session = await InterviewSession.findById(id);
     const question = await Question.findById(question_id);
+    const authUserId = req.body?.user_id || "mock_user_123";
 
-    if (!session || !question) {
-      log.warn("EXECUTE", `Not found — session: ${!!session}, question: ${!!question}`);
-      return res.status(404).json({ error: "Not found" });
+    if (!session || !question || session.user_id !== authUserId) {
+      log.warn("EXECUTE", `Not found or forbidden — session: ${!!session}`);
+      return res.status((session && session.user_id !== authUserId) ? 403 : 404).json({ error: "Not found or access denied" });
     }
 
     const testCases = question.test_cases || [];
@@ -135,16 +188,62 @@ exports.executeCodingAnswer = async (req, res) => {
 exports.getSession = async (req, res) => {
   try {
     log.info("SESSION", `📋 Fetching session: ${req.params.id}`);
-    const session = await InterviewSession.findById(req.params.id).populate("questions.question_id");
-    if (!session) {
-      log.warn("SESSION", `Session not found: ${req.params.id}`);
-      return res.status(404).json({ error: "Session not found" });
+    const session = await InterviewSession.findById(req.params.id).populate({ path: "questions.question_id", model: "Question" });
+    const authUserId = req.query?.user_id || "mock_user_123";
+    if (!session || session.user_id !== authUserId) {
+      log.warn("SESSION", `Session not found or forbidden: ${req.params.id}`);
+      return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     }
     
     log.success("SESSION", `✅ Session retrieved — ${session.questions.length} questions, score: ${session.total_score || 'N/A'}`);
     res.json(session);
   } catch (err) {
     log.error("SESSION", `Failed to fetch session: ${err.message}`, err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+exports.getReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    log.info("REPORT", `📋 Generating report for session: ${id}`);
+    
+    const session = await InterviewSession.findById(id);
+    const authUserId = req.query?.user_id || "mock_user_123";
+    if (!session || session.user_id !== authUserId) return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
+    if (!session.resume_id) return res.status(400).json({ error: "Session has no associated resume" });
+
+    const resumeProfile = await ResumeProfile.findById(session.resume_id);
+    if (!resumeProfile) return res.status(404).json({ error: "Resume profile not found" });
+
+    const report = await generateFinalReport(resumeProfile);
+
+    res.json(report);
+  } catch (err) {
+    log.error("REPORT", `Failed to generate report: ${err.message}`, err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+exports.getUserSessions = async (req, res) => {
+  try {
+    const userId = req.params.userId || "mock_user_123";
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    
+    log.info("SESSION", `📋 Fetching interview history for auth user: ${userId}`);
+    
+    // Find all sessions for the user, sort by newest first
+    const sessions = await InterviewSession.find({ user_id: userId })
+      .sort({ createdAt: -1 })
+      .populate({ path: "questions.question_id", model: "Question" })
+      .populate({ path: "resume_id", model: "ResumeProfile" });
+      
+    log.success("SESSION", `✅ Retrieved ${sessions.length} sessions for user ${userId}`);
+    res.json(sessions);
+  } catch (err) {
+    log.error("SESSION", `Failed to fetch user sessions: ${err.message}`, err);
     res.status(500).json({ error: "Server error" });
   }
 };
