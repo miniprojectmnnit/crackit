@@ -1,4 +1,4 @@
-const { ai } = require("../utils/geminiClient");
+const { callGeminiWithFallback } = require("../utils/llmClient");
 
 async function expandProblem(questionText) {
 
@@ -94,13 +94,7 @@ Return the JSON object now.
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: { temperature: 0.2 }
-    });
-
-    let output = response.text || "";
+    const output = await callGeminiWithFallback(prompt, { temperature: 0.2 });
     output = output.replace(/```json/g, "").replace(/```/g, "").trim();
 
     const jsonStart = output.indexOf("{");

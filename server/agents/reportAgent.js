@@ -1,4 +1,4 @@
-const { ai } = require("../utils/geminiClient");
+const { callGeminiWithFallback } = require("../utils/llmClient");
 const log = require("../utils/logger");
 
 const REPORT_PROMPT = `
@@ -54,13 +54,7 @@ exports.generateFinalReport = async (resumeProfile) => {
 
     log.info("AGENT", "🤖 Calling Gemini to generate Final Evaluation Report...");
     
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: { temperature: 0.2 }
-    });
-
-    const output = (response.text || "").trim();
+    const output = await callGeminiWithFallback(prompt, { temperature: 0.2 });
     const jsonStr = output.replace(/^\`\`\`json/i, "").replace(/\`\`\`$/, "").trim();
     
     const parsedReport = JSON.parse(jsonStr);
