@@ -1,14 +1,6 @@
 require("dotenv").config();
-const { GoogleGenAI } = require("@google/genai");
 const log = require("./logger");
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-if (!GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY not found in environment variables");
-}
-
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const { callGeminiWithFallback } = require("./llmClient");
 
 async function extractQuestionsWithLLM(text) {
 
@@ -123,18 +115,7 @@ ${trimmedText}
 `;
 
   try {
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        temperature: 0.2
-      }
-    });
-
-    let output = response.text || "";
-
-    log.info("LLM", `📨 Received LLM response (${output.length} chars)`);
+    const output = await callGeminiWithFallback(prompt, { temperature: 0.2 });
 
     output = output
       .replace(/```json/g, "")
@@ -169,9 +150,7 @@ ${trimmedText}
     return cleaned;
 
   } catch (err) {
-
     log.error("LLM", `Gemini extraction failed: ${err.message}`);
-
     return [];
   }
 }

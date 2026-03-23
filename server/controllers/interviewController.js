@@ -52,9 +52,14 @@ exports.createSession = async (req, res) => {
        const questionIds = await generateInterviewPlan(resumeProfile, question_count);
        questions = questionIds.map(id => ({ question_id: id }));
     } else if (source_url) {
-      log.info("SESSION", `🌐 Attempting to use existing questions from URL...`);
-      // Optional fallback to basic URL question fetching here if needed
-      // This part could be expanded or removed if URL-based testing is deprecated
+      log.info("SESSION", `🌐 Fetching existing questions from URL: ${source_url}`);
+      const page = await Page.findOne({ page_url: source_url });
+      if (page && page.question_ids && page.question_ids.length > 0) {
+        log.success("SESSION", `✅ Found ${page.question_ids.length} questions for URL`);
+        questions = page.question_ids.map(id => ({ question_id: id }));
+      } else {
+        log.warn("SESSION", `⚠️  No questions found for URL: ${source_url}. Interview will have no questions.`);
+      }
     }
 
     const session = new InterviewSession({

@@ -1,4 +1,4 @@
-const { ai } = require("../utils/geminiClient");
+const { callGeminiWithFallback } = require("../utils/llmClient");
 const log = require("../utils/logger");
 
 const RESUME_PARSER_PROMPT = `
@@ -59,15 +59,8 @@ exports.parseResumeText = async (rawText) => {
     const prompt = RESUME_PARSER_PROMPT.replace("{RAW_TEXT}", rawText);
 
     log.info("AGENT", "🤖 Calling Gemini to parse resume text...");
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        temperature: 0.1, // Low temperature for consistent JSON extraction
-      }
-    });
+    const output = await callGeminiWithFallback(prompt, { temperature: 0.1 });
 
-    const output = (response.text || "").trim();
     // In case the model wraps in markdown despite instructions
     const jsonStr = output.replace(/^\`\`\`json/i, "").replace(/\`\`\`$/, "").trim();
 

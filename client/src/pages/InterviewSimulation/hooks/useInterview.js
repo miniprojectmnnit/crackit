@@ -347,7 +347,7 @@ export const useInterview = (initialSessionId) => {
     currentQuestion,
     currentIndex,
     questions,
-    session,
+    session: sessionData,
     code,
     answer,
     feedback,

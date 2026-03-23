@@ -5,7 +5,7 @@ import { Loader2, ArrowLeft, Trophy, AlertTriangle, TrendingUp, CheckCircle, Awa
 
 
 const InterviewReport = () => {
-  const { id } = useParams();
+  const { sessionId } = useParams();
   const navigate = useNavigate();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,7 +14,7 @@ const InterviewReport = () => {
   useEffect(() => {
     const fetchReport = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/interviews/session/${id}/report?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`);
+        const res = await fetch(`http://localhost:5000/api/interviews/session/${sessionId}/report?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`);
         if (!res.ok) throw new Error('Failed to fetch report');
         const data = await res.json();
         setReport(data);
@@ -25,7 +25,7 @@ const InterviewReport = () => {
       }
     };
     fetchReport();
-  }, [id]);
+  }, [sessionId]);
 
   if (loading) {
     return (
@@ -51,7 +51,7 @@ const InterviewReport = () => {
   }
 
   // Format data for charts
-  const radarData = Object.entries(reportData.skill_scores || {}).map(([domain, score]) => ({
+  const radarData = Object.entries(report.skill_scores || {}).map(([domain, score]) => ({
     domain: domain.replace("Data Structures & Algorithms", "DSA").replace("Logical Reasoning", "Logic"),
     score: score
   }));
@@ -88,7 +88,7 @@ const InterviewReport = () => {
                <Award className="text-yellow-400" /> Professional Summary
              </h2>
              <p className="text-gray-300 leading-relaxed text-lg">
-                {reportData.professional_summary}
+                {report.professional_summary}
              </p>
           </div>
 
@@ -119,7 +119,7 @@ const InterviewReport = () => {
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-[#2A2E3D]/50">
-                   {reportData.resume_vs_observed?.map((item, idx) => (
+                   {report.resume_vs_observed?.map((item, idx) => (
                      <tr key={idx} className="hover:bg-[#2A2E3D]/20 transition-colors">
                        <td className="py-4 text-gray-200 font-medium">{item.domain}</td>
                        <td className="py-4 text-center">
@@ -152,9 +152,9 @@ const InterviewReport = () => {
              <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-green-400">
                <Trophy size={24} /> Verified Strengths
              </h3>
-             {reportData.strengths?.length > 0 ? (
+             {report.strengths?.length > 0 ? (
                <ul className="space-y-4">
-                 {reportData.strengths.map((str, i) => (
+                 {report.strengths.map((str, i) => (
                    <li key={i} className="flex gap-3 text-gray-300">
                      <CheckCircle className="text-green-500 flex-shrink-0 mt-0.5" size={18} />
                      <span className="text-sm">{str}</span>
@@ -170,9 +170,9 @@ const InterviewReport = () => {
              <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-red-400">
                <AlertTriangle size={24} /> Weak Areas
              </h3>
-             {reportData.weak_areas?.length > 0 ? (
+             {report.weak_areas?.length > 0 ? (
                <ul className="space-y-4">
-                 {reportData.weak_areas.map((weak, i) => (
+                 {report.weak_areas.map((weak, i) => (
                    <li key={i} className="flex gap-3 text-gray-300">
                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 flex-shrink-0" />
                      <span className="text-sm">{weak}</span>
@@ -188,9 +188,9 @@ const InterviewReport = () => {
              <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-blue-400">
                <TrendingUp size={24} /> Potential Growth Areas
              </h3>
-             {reportData.potential_growth?.length > 0 ? (
+             {report.potential_growth?.length > 0 ? (
                <ul className="space-y-4">
-                 {reportData.potential_growth.map((growth, i) => (
+                 {report.potential_growth.map((growth, i) => (
                    <li key={i} className="flex gap-3 text-gray-300">
                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
                      <span className="text-sm">{growth}</span>

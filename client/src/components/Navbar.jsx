@@ -22,22 +22,11 @@ const Navbar = () => {
 
         {/* Navigation Links (if needed in the future) */}
         <nav className="hidden md:flex items-center gap-8">
-          <Link to="/resume-upload" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Resume Interview</Link>
-          <Link to="/feed" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors flex items-center gap-1">History feed</Link>
+          <Link to="/resume-upload" className="text-lg font-medium text-zinc-400 hover:text-white transition-colors">Resume Interview</Link>
+          <Link to="/feed" className="text-lg font-medium text-zinc-400 hover:text-white transition-colors flex items-center gap-1">History feed</Link>
         </nav>
 
-        {/* User / Auth section */}
-        <div className="flex items-center gap-4">
-            <Link to="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors px-4 py-2">
-              Login
-            </Link>
-            <Link 
-              to="/register" 
-              className="text-sm font-medium bg-white text-black hover:bg-zinc-200 transition-colors px-4 py-2 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.3)]"
-            >
-              Get Started
-            </Link>
-        </div>
+
       </div>
     </header>
   );
