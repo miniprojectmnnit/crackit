@@ -26,6 +26,7 @@ export const useInterview = (initialSessionId) => {
 
   // Interaction state
   const [code, setCode] = useState(DEFAULT_CODE);
+  const [language, setLanguage] = useState('JavaScript');
   const [answer, setAnswer] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [execResult, setExecResult] = useState(null);
@@ -203,7 +204,7 @@ export const useInterview = (initialSessionId) => {
 
         if (currentQuestion.type === 'Coding') {
           console.log('[INTERVIEW] 💻 Generated code template for coding question');
-          setCode(generateCodeTemplate(currentQuestion));
+          setCode(generateCodeTemplate(currentQuestion, language));
         } else {
           setCode(DEFAULT_CODE);
         }
@@ -276,6 +277,15 @@ export const useInterview = (initialSessionId) => {
       setCode(DEFAULT_CODE);
     } else {
       console.log('[INTERVIEW] 🏁 Interview finished — all questions completed');
+      
+      // Dispatch the report generation API call in the background!
+      // The frontend will now navigate to InterviewReport.jsx and poll until this completes.
+      if (sessionData && sessionData._id) {
+        console.log('[INTERVIEW] 🚀 Sparking background report generation...');
+        fetch(`http://localhost:5000/api/interviews/session/${sessionData._id}/report?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`)
+          .catch(err => console.error('[INTERVIEW] ❌ Failed to dispatch report generation:', err));
+      }
+
       setInterviewFinished(true);
     }
   };
@@ -324,6 +334,7 @@ export const useInterview = (initialSessionId) => {
         body: JSON.stringify({
           question_id: currentQuestion._id,
           code,
+          language,
           user_id: localStorage.getItem("user_id") || "mock_user_123"
         })
       });
@@ -359,6 +370,7 @@ export const useInterview = (initialSessionId) => {
     questions,
     session: sessionData,
     code,
+    language,
     answer,
     feedback,
     execResult,
@@ -373,6 +385,7 @@ export const useInterview = (initialSessionId) => {
 
     // Setters
     setCode,
+    setLanguage,
     setAnswer,
 
     // Actions

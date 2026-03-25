@@ -15,7 +15,7 @@ const interviewSessionSchema = new mongoose.Schema({
   // LangGraph conductor state
   phase: {
     type: String,
-    enum: ["initializing", "greeting", "questioning", "evaluating", "followup", "report", "done"],
+    enum: ["initializing", "greeting", "questioning", "evaluating", "followup", "report", "generating_report", "done"],
     default: "initializing"
   },
   current_q_index: { type: Number, default: 0 },
