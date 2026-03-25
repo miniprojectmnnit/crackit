@@ -1,101 +1,43 @@
-const { callGeminiWithFallback } = require("../utils/llmClient");
+const { z } = require("zod");
+const { getLLM } = require("../utils/llmClient");
+const { ChatPromptTemplate } = require("@langchain/core/prompts");
 
-async function generateExamples(questionText, description) {
+const exampleSchema = z.object({
+  examples: z.array(z.object({
+    input: z.string(),
+    output: z.string(),
+    explanation: z.string().describe("1-3 sentences explaining why the output is correct")
+  })).min(2).max(3).describe("2 or 3 clear educational examples")
+});
 
-  const prompt = `
-================ ROLE =================
-You are a senior algorithm problem designer and competitive programming educator.
-
+const examplePrompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are a senior algorithm problem designer and competitive programming educator.
 Your task is to generate clear, educational examples for a coding interview problem.
 
-The examples should help candidates understand:
-• how inputs are structured
-• how outputs are derived
-• what the algorithm should compute
-
-================ PROBLEM CONTEXT =================
-
+EXAMPLE GENERATION RULES:
+1. The first example should be a simple, easy-to-understand case.
+2. The second example should show a more interesting case that demonstrates the main logic.
+3. If possible, the third example should show an edge case.`],
+  ["user", `================ PROBLEM CONTEXT =================
 Problem Title / Question:
-"${questionText}"
+"{question_text}"
 
 Problem Description:
-"${description}"
+"{description}"`]
+]);
 
-================ EXAMPLE GENERATION RULES =================
-
-Generate 2–3 examples that illustrate the problem clearly.
-
-The examples should follow these guidelines:
-
-1. The first example should be a **simple, easy-to-understand case**.
-
-2. The second example should show a **more interesting case**
-   that demonstrates the main logic of the problem.
-
-3. If possible, the third example should show an **edge case**
-   (empty input, duplicate values, minimal size, boundary case, etc.).
-
-Each example must include:
-• input
-• output
-• explanation
-
-Explanation requirements:
-• 1–3 sentences
-• explain WHY the output is correct
-• avoid unnecessary verbosity
-
-================ INPUT/OUTPUT FORMAT RULES =================
-
-Represent inputs exactly as they would appear in coding platforms
-like programming interviews or competitive programming.
-
-Examples of good formats:
-
-Array input:
-"[1,2,3]"
-
-Multiple arguments:
-"nums = [1,2,3], target = 4"
-
-Matrix input:
-"[[1,2],[3,4]]"
-
-Output must be the exact expected result.
-
-================ OUTPUT FORMAT (STRICT) =================
-
-Return ONLY a JSON array.
-
-Each element must follow this schema:
-
-{
-  "input": string,
-  "output": string,
-  "explanation": string
-}
-
-Important rules:
-• DO NOT include markdown
-• DO NOT include explanations outside JSON
-• DO NOT include text before or after JSON
-• Output must be valid JSON
-
-Return the JSON array now.
-`;
-
+async function generateExamples(questionText, description) {
   try {
-    const output = await callGeminiWithFallback(prompt, { temperature: 0.2 });
-    output = output.replace(/```json/g, "").replace(/```/g, "").trim();
+    const llm = getLLM({ temperature: 0.2 });
+    const structuredLlm = llm.withStructuredOutput(exampleSchema);
+    const chain = examplePrompt.pipe(structuredLlm);
 
-    const jsonStart = output.indexOf("[");
-    const jsonEnd = output.lastIndexOf("]");
-
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      return JSON.parse(output.substring(jsonStart, jsonEnd + 1));
-    }
-
-    return [];
+    const result = await chain.invoke({
+      question_text: questionText,
+      description: description
+    });
+    
+    return result.examples;
 
   } catch (error) {
     console.error("ExampleGeneratorAgent Error:", error.message);
