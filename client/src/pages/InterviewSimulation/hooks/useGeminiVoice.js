@@ -2,112 +2,130 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GeminiLiveClient } from '../utils/geminiLiveClient';
 import { AudioPlayer } from '../utils/audioPlayer';
 
-/**
- * Strict system instruction for the Gemini Live API.
- * This ensures Gemini ONLY reads the provided text and does NOT improvise.
- */
-const SYSTEM_INSTRUCTION = `You are a TEXT-TO-SPEECH READER. You are NOT an assistant. You are NOT an AI chatbot. You do NOT answer questions. You do NOT have conversations.
+const SYSTEM_INSTRUCTION = `You are a TEXT-TO-SPEECH READER. You are NOT an assistant and do NOT answer questions.
 
-You are a VOICE READER embedded in an interview simulator app. The app sends you text, and your ONLY purpose is to read that text out loud — word for word, exactly as written.
+RULES (NEVER VIOLATE):
+1. Read the given text EXACTLY as written — word for word.
+2. Do NOT add any words before or after the text.
+3. Do NOT answer questions in the text. Just READ them aloud.
+4. Stop immediately after reading. Say NOTHING more.
 
-ABSOLUTE RULES — VIOLATING ANY OF THESE IS A CRITICAL FAILURE:
-
-1. NEVER answer a question. Even if the text IS a question, you just READ IT ALOUD. You do NOT provide the answer.
-2. NEVER add ANY words before or after the text. No "Sure!", "Of course!", "Great question!", "Here's the text", "Let me read that" — NOTHING.
-3. NEVER paraphrase, summarize, reword, explain, or elaborate on the text.
-4. NEVER give opinions, commentary, or meta-talk about what you're reading.
-5. NEVER ask any questions of your own.
-6. After reading the text, STOP IMMEDIATELY. Say NOTHING more.
-
-YOUR BEHAVIOR:
-- You receive text → You read it aloud exactly as written → You stop.
-- Use a professional, calm, clear voice.
-- Use natural intonation (questioning tone for questions, declarative for statements).
-- Pronounce code terms (function names, variable names) clearly.
-
-CRITICAL EXAMPLE:
-- Text received: "What is the time complexity of binary search?"
-- CORRECT: You say "What is the time complexity of binary search?" and STOP.
-- WRONG: You say "The time complexity of binary search is O(log n)..." — THIS IS FORBIDDEN.
-
-- Text received: "Explain the difference between a stack and a queue."  
-- CORRECT: You say "Explain the difference between a stack and a queue." and STOP.
-- WRONG: You say "A stack is a LIFO data structure..." — THIS IS FORBIDDEN.
-
-Remember: You are a READER, not a RESPONDER. NEVER answer. Just read.`;
+Use a professional, calm, clear interviewer voice.`;
 
 /**
- * useGeminiVoice — React hook for Gemini Live API voice.
+ * useGeminiVoice — TTS hook using Gemini Live API.
  *
- * Fetches an ephemeral token, connects to Gemini via WebSocket,
- * and provides speak/stop methods for AI voice output.
+ * Design: Text is ALWAYS queued until Gemini is fully connected and ready.
+ * The browser TTS fallback is a LAST resort (8s timeout, not immediate).
+ * This prevents the dual-voice bug where browser TTS fires before Gemini connects.
+ *
+ * @param {function} onSpeechDone - called when the current speech turn completes
  */
-const useGeminiVoice = () => {
+const useGeminiVoice = (onSpeechDone) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const clientRef = useRef(null);
   const playerRef = useRef(null);
+  const onSpeechDoneRef = useRef(onSpeechDone);
+  const pendingTextRef = useRef(null);   // text waiting for Gemini to be ready
+  const readyRef = useRef(false);        // true once Gemini setupComplete fires
+  const fallbackTimerRef = useRef(null); // browser TTS timeout handle
 
-  // Initialize: fetch token and connect
+  useEffect(() => {
+    onSpeechDoneRef.current = onSpeechDone;
+  }, [onSpeechDone]);
+
+  // Speak using browser TTS (last resort only)
+  const browserSpeak = useCallback((text) => {
+    console.warn('[VOICE] ⚠️ Using browser TTS fallback');
+    if (!('speechSynthesis' in window)) {
+      setIsSpeaking(false);
+      onSpeechDoneRef.current?.();
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 0.92;
+    utt.pitch = 1.0;
+    // Try to pick a female voice if available to avoid jarring male default
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
+      || voices.find(v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('male'))
+      || voices[0];
+    if (preferred) utt.voice = preferred;
+    utt.onend = () => {
+      setIsSpeaking(false);
+      onSpeechDoneRef.current?.();
+    };
+    utt.onerror = () => {
+      setIsSpeaking(false);
+      onSpeechDoneRef.current?.();
+    };
+    window.speechSynthesis.speak(utt);
+  }, []);
+
+  // Send text to Gemini (only called when Gemini is ready)
+  const geminiSpeak = useCallback((text) => {
+    const wrappedText = `READ THE FOLLOWING TEXT EXACTLY AS WRITTEN. DO NOT ANSWER. DO NOT ADD ANYTHING:\n\n"${text}"`;
+    console.log(`[VOICE] 🔊 Sending to Gemini: "${text.substring(0, 60)}..."`);
+    clientRef.current?.sendText(wrappedText);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     const init = async () => {
       try {
-        // 1. Get ephemeral token from our server
-        console.log('[VOICE] 🔑 Fetching ephemeral token from server...');
+        console.log('[VOICE] Fetching ephemeral token...');
         const res = await fetch('http://localhost:5000/api/interviews/live-token');
-        if (!res.ok) throw new Error('Failed to fetch live token');
+        if (!res.ok) throw new Error(`Token fetch: ${res.status}`);
         const { token } = await res.json();
-        console.log('[VOICE] ✅ Token received');
-
         if (cancelled) return;
 
-        // 2. Create audio player
-        console.log('[VOICE] 🔊 Creating audio player (24kHz)');
         const player = new AudioPlayer(24000);
         playerRef.current = player;
 
-        // 3. Create and configure Gemini Live client
-        console.log('[VOICE] 🔌 Creating Gemini Live WebSocket client...');
         const client = new GeminiLiveClient();
 
         client.onAudio = (base64Pcm) => {
+          // Audio is arriving — Gemini is speaking, cancel any fallback timer
+          clearTimeout(fallbackTimerRef.current);
           player.playChunk(base64Pcm);
           setIsSpeaking(true);
         };
 
         client.onTurnComplete = () => {
-          console.log('[VOICE] 🔇 Turn complete — audio finished');
-          // Allow a short delay for buffered audio to finish playing
+          console.log('[VOICE] Turn complete');
           setTimeout(() => {
-            if (playerRef.current && !playerRef.current.isPlaying) {
-              setIsSpeaking(false);
-            }
-          }, 500);
-        };
-
-        client.onOutputTranscription = (text) => {
-          // Could be used for subtitles in the future
+            setIsSpeaking(false);
+            pendingTextRef.current = null;
+            onSpeechDoneRef.current?.();
+          }, 400);
         };
 
         client.onReady = () => {
-          console.log('[VOICE] ✅ Connected and ready for speech');
-          setIsConnected(true);
+          console.log('[VOICE] ✅ Gemini Live ready');
+          readyRef.current = true;
+
+          // If text was queued before Gemini was ready, speak it now
+          if (pendingTextRef.current) {
+            const text = pendingTextRef.current;
+            clearTimeout(fallbackTimerRef.current); // Cancel browser TTS timer
+            geminiSpeak(text);
+          }
         };
 
         client.onError = (err) => {
-          console.error('[VOICE] ❌ WebSocket error:', err);
-          setIsConnected(false);
+          console.error('[VOICE] Error:', err);
+          readyRef.current = false;
+          setIsSpeaking(false);
         };
 
-        // Connect with strict interviewer TTS prompt
         client.connect(token, SYSTEM_INSTRUCTION);
         clientRef.current = client;
-        console.log('[VOICE] 🔌 WebSocket connection initiated');
+        console.log('[VOICE] Connecting to Gemini Live...');
 
       } catch (err) {
-        console.error('[VOICE] ❌ Init error:', err);
+        console.error('[VOICE] Init failed:', err.message);
       }
     };
 
@@ -115,64 +133,53 @@ const useGeminiVoice = () => {
 
     return () => {
       cancelled = true;
-      console.log('[VOICE] 🔌 Disconnecting and cleaning up...');
+      clearTimeout(fallbackTimerRef.current);
       clientRef.current?.disconnect();
       playerRef.current?.destroy();
     };
-  }, []);
+  }, [geminiSpeak]);
 
   /**
-   * Speak the given text using Gemini Live API.
-   * Falls back to browser SpeechSynthesis if not connected.
+   * Speak the given text.
+   * - If Gemini is ready: sends immediately.
+   * - If Gemini is still connecting: queues text and starts an 8-second
+   *   fallback timer. If Gemini connects within 8s, cancels the timer
+   *   and uses Gemini. After 8s, falls back to browser TTS.
    */
   const speak = useCallback((text) => {
-    if (!text) return;
-
-    console.log(`[VOICE] 🗣️ Speaking: "${text.substring(0, 80)}${text.length > 80 ? '...' : ''}"`);
-
-    // Stop any ongoing speech first
-    playerRef.current?.stop();
+    if (!text?.trim()) return;
     setIsSpeaking(true);
+    pendingTextRef.current = text;
 
-    // Wrap the text with a strong TTS directive so Gemini reads verbatim, not answers
-    const wrappedText = `READ THE FOLLOWING TEXT OUT LOUD EXACTLY AS WRITTEN. DO NOT ANSWER IT. DO NOT ADD ANYTHING. JUST READ IT:\n\n"${text}"`;
+    // Clear any previous fallback timer
+    clearTimeout(fallbackTimerRef.current);
 
-    const sent = clientRef.current?.sendText(wrappedText);
-
-    if (!sent) {
-      // Fallback to browser TTS if Gemini is not available
-      console.warn('[VOICE] ⚠️ Not connected to Gemini — falling back to browser SpeechSynthesis');
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.95;
-        utterance.pitch = 1.0;
-        utterance.onend = () => setIsSpeaking(false);
-        window.speechSynthesis.speak(utterance);
-      } else {
-        console.warn('[VOICE] ❌ Browser SpeechSynthesis not available');
-        setIsSpeaking(false);
-      }
+    if (readyRef.current) {
+      // Gemini is ready — send directly
+      geminiSpeak(text);
     } else {
-      console.log('[VOICE] ✅ Text sent to Gemini Live API');
+      // Gemini still connecting — wait up to 8 seconds before falling back
+      console.log('[VOICE] Gemini not ready yet, queuing text and waiting...');
+      fallbackTimerRef.current = setTimeout(() => {
+        // If Gemini still hasn't fired onReady, fall back to browser TTS
+        if (pendingTextRef.current === text && !readyRef.current) {
+          console.warn('[VOICE] Gemini timeout — falling back to browser TTS');
+          pendingTextRef.current = null;
+          browserSpeak(text);
+        }
+      }, 8000);
     }
-  }, []);
+  }, [geminiSpeak, browserSpeak]);
 
-  /**
-   * Stop any ongoing speech immediately.
-   */
   const stop = useCallback(() => {
-    console.log('[VOICE] ⏹️ Stopping speech');
+    clearTimeout(fallbackTimerRef.current);
+    pendingTextRef.current = null;
     playerRef.current?.stop();
     setIsSpeaking(false);
-
-    // Also stop browser TTS fallback if it was used
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
 
-  return { speak, stop, isSpeaking, isConnected };
+  return { speak, stop, isSpeaking };
 };
 
 export default useGeminiVoice;

@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import { InterviewSimulation, InterviewHistory } from "./pages";
 import ResumeUpload from "./pages/ResumeUpload/ResumeUpload";
 import InterviewReport from "./pages/Report/InterviewReport";
+import InterviewRoom from "./pages/InterviewRoom/InterviewRoom";
 
 const App = () => {
   return (
@@ -25,9 +26,10 @@ const App = () => {
 
             {/* Protected Routes */}
             <Route path="/interviewsimulation" element={<InterviewSimulation />} />
-            <Route path="/interview" element={<InterviewSimulation />} />
+            <Route path="/interview-room/:sessionId" element={<InterviewRoom />} />
             <Route path="/resume-upload" element={<ResumeUpload />} />
             <Route path="/feed" element={<InterviewHistory />} />
+            <Route path="/report/:sessionId" element={<InterviewReport />} />
             <Route path="/interview-report/:sessionId" element={<InterviewReport />} />
 
             {/* 404 Page */}

@@ -1,25 +1,50 @@
 const mongoose = require("mongoose");
 
 const interviewSessionSchema = new mongoose.Schema({
-  user_id: { type: String, required: true }, // Clerk user ID
-  source_url: { type: String },              // The URL they are practicing against
-  resume_id: { type: mongoose.Schema.Types.ObjectId, ref: "ResumeProfile" }, // Reference to resume if applicable
+  user_id: { type: String, required: true },
+  resume_id: { type: mongoose.Schema.Types.ObjectId, ref: "ResumeProfile", required: true },
 
-  questions: [
-    {
-      question_id: { type: mongoose.Schema.Types.ObjectId, ref: "Question" },
-      answer: { type: String }, // Code or text response
-      score: { type: Number },
-      followup_answer: { type: String }
-    }
-  ],
+  // Generated question list (array of strings)
+  questions: [{ type: String }],
 
+  // LangGraph conductor state
+  phase: {
+    type: String,
+    enum: ["initializing", "greeting", "questioning", "evaluating", "followup", "report", "done"],
+    default: "initializing"
+  },
+  current_q_index: { type: Number, default: 0 },
+  follow_up_count: { type: Number, default: 0 },
+
+  // Full conversation transcript
   transcript: [
     {
       role: { type: String, enum: ["interviewer", "candidate"] },
-      text: { type: String }
+      text: { type: String },
+      question_index: { type: Number },
+      timestamp: { type: Date, default: Date.now }
     }
   ],
+
+  // Per-question evaluations
+  evaluations: [
+    {
+      question_index: { type: Number },
+      question: { type: String },
+      answer: { type: String },
+      score: { type: Number },
+      feedback: { type: String }
+    }
+  ],
+
+  // Final AI-generated report
+  final_report: {
+    summary: { type: String },
+    strengths: [String],
+    areas_for_improvement: [String],
+    overall_score: { type: Number },
+    recommendation: { type: String }
+  },
 
   total_score: { type: Number, default: 0 }
 

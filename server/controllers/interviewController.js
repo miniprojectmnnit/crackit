@@ -103,7 +103,7 @@ exports.evaluateQuestion = async (req, res) => {
     log.info("EVALUATE", `🤖 Calling evaluateAgent — question type: ${question.type}, text: "${question.question_text?.substring(0, 60)}..."`);
 
     // evaluate
-    const evaluation = await evaluateAnswer(question, answer, question.solution);
+    const evaluation = await evaluateAnswer(question, answer, question.solution, session.transcript);
 
     log.success("EVALUATE", `✅ Evaluation complete — correctness: ${evaluation?.correctness}, clarity: ${evaluation?.clarity}, problem_solving: ${evaluation?.problem_solving}`);
     if (evaluation?.follow_up_question) {

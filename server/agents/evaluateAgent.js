@@ -18,7 +18,10 @@ You must behave like a real interviewer:
 • Fair but critical
 • Focus on reasoning, not just final answer
 • Encourage improvement through feedback`],
-  ["user", `================ INTERVIEW CONTEXT =================
+  ["user", `================ PREVIOUS CONVERSATION =================
+{transcript}
+
+================ INTERVIEW CONTEXT =================
 Question Category: {question_type}
 
 Interview Question:
@@ -56,9 +59,13 @@ Write feedback as if you are the interviewer speaking to the candidate.
 • highlight one strength and one improvement area`]
 ]);
 
-async function evaluateAnswer(question, answer, optimalSolution = "") {
+async function evaluateAnswer(question, answer, optimalSolution = "", transcript = []) {
   log.info("EVAL_AGENT", `🤖 Starting evaluation — type: ${question.type}, question: "${(question.question_text || "").substring(0, 60)}..."`);
   log.info("EVAL_AGENT", `📝 Answer preview: "${String(answer).substring(0, 100)}..."`);
+
+  const transcriptStr = transcript && transcript.length > 0
+    ? transcript.map(t => `${t.role.toUpperCase()}: ${t.text}`).join('\n\n')
+    : "No prior conversation history.";
 
   try {
     const llm = getLLM({ temperature: 0 });
@@ -71,7 +78,8 @@ async function evaluateAnswer(question, answer, optimalSolution = "") {
       question_type: question.type,
       question_text: question.question_text,
       optimal_solution: optimalSolution || "No optimal solution provided",
-      answer: answer
+      answer: answer,
+      transcript: transcriptStr
     });
 
     log.success("EVAL_AGENT", `✅ Evaluation parsed — correctness: ${result.correctness}, clarity: ${result.clarity}, problem_solving: ${result.problem_solving}`);

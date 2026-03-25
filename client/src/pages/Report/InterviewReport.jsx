@@ -1,207 +1,168 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import { Loader2, ArrowLeft, Trophy, AlertTriangle, TrendingUp, CheckCircle, Award } from 'lucide-react';
+import { Trophy, ThumbsUp, Target, ChevronRight, Loader2, Star } from 'lucide-react';
 
+const recommendationConfig = {
+  "Strong Hire": { color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/30", icon: "🌟" },
+  "Hire": { color: "text-cyan-400", bg: "bg-cyan-400/10 border-cyan-400/30", icon: "✅" },
+  "Maybe": { color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", icon: "🤔" },
+  "No Hire": { color: "text-red-400", bg: "bg-red-400/10 border-red-400/30", icon: "❌" }
+};
+
+const ScoreRing = ({ score }) => {
+  const circumference = 2 * Math.PI * 54;
+  const offset = circumference - (score / 100) * circumference;
+  const color = score >= 75 ? '#34d399' : score >= 50 ? '#facc15' : '#f87171';
+
+  return (
+    <div className="relative w-36 h-36 flex items-center justify-center">
+      <svg className="absolute w-full h-full -rotate-90" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="54" fill="none" stroke="#1e293b" strokeWidth="10" />
+        <circle
+          cx="60" cy="60" r="54"
+          fill="none" stroke={color} strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+        />
+      </svg>
+      <div className="text-center">
+        <div className="text-3xl font-bold text-white">{score}</div>
+        <div className="text-xs text-slate-400">/ 100</div>
+      </div>
+    </div>
+  );
+};
 
 const InterviewReport = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const [report, setReport] = useState(null);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchReport = async () => {
+    if (!sessionId) return;
+    const fetchSession = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/interviews/session/${sessionId}/report?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`);
-        if (!res.ok) throw new Error('Failed to fetch report');
+        const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}`);
         const data = await res.json();
-        setReport(data);
-      } catch (err) {
-        setError(err.message);
+        setSession(data);
+      } catch (e) {
+        console.error('Failed to load session', e);
       } finally {
         setLoading(false);
       }
     };
-    fetchReport();
+    // Poll until phase is "done"
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}`);
+        const data = await res.json();
+        if (data.phase === 'done' || data.final_report?.summary) {
+          setSession(data);
+          setLoading(false);
+          clearInterval(poll);
+        }
+      } catch (e) {}
+    }, 2000);
+    fetchSession();
+    return () => clearInterval(poll);
   }, [sessionId]);
 
-  if (loading) {
+  if (loading || !session?.final_report?.summary) {
     return (
-      <div className="min-h-screen bg-[#0F1117] flex flex-col items-center justify-center text-white">
-        <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
-        <h2 className="text-2xl font-bold font-sans">Generating Final Evaluation...</h2>
-        <p className="text-gray-400 mt-2">Analyzing your performance across all domains</p>
+      <div className="min-h-screen bg-[#080a0f] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-cyan-400 mx-auto mb-4" size={48} />
+          <p className="text-slate-300 text-lg font-medium">Generating your report...</p>
+          <p className="text-slate-500 text-sm mt-2">Our AI is analyzing the full interview</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#0F1117] flex flex-col items-center justify-center text-white px-4">
-        <AlertTriangle className="text-red-500 mb-4" size={48} />
-        <h2 className="text-2xl font-bold mb-2">Error Loading Report</h2>
-        <p className="text-gray-400 mb-6">{error}</p>
-        <button onClick={() => navigate('/')} className="px-6 py-2 bg-[#2A2E3D] hover:bg-[#3A3F58] rounded-lg transition-colors">
-          Return Home
-        </button>
-      </div>
-    );
-  }
-
-  // Format data for charts
-  const radarData = Object.entries(report.skill_scores || {}).map(([domain, score]) => ({
-    domain: domain.replace("Data Structures & Algorithms", "DSA").replace("Logical Reasoning", "Logic"),
-    score: score
-  }));
-
-  const getScoreColor = (score) => {
-    if (score >= 7) return "text-green-400";
-    if (score >= 4) return "text-yellow-400";
-    return "text-red-400";
-  };
+  const report = session.final_report;
+  const recConfig = recommendationConfig[report.recommendation] || recommendationConfig["Maybe"];
 
   return (
-    <div className="min-h-screen bg-[#0F1117] text-white p-8 pt-24 font-sans max-w-7xl mx-auto">
-      <button 
-        onClick={() => navigate('/')}
-        className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
-      >
-        <ArrowLeft size={16} /> Back to Dashboard
-      </button>
+    <div className="min-h-screen bg-[#080a0f] text-white py-12 px-4">
+      <div className="max-w-4xl mx-auto">
 
-      <div className="mb-12">
-        <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent inline-block">
-          Interview Evaluation Report
-        </h1>
-        <p className="text-gray-400 text-lg">AI-generated analysis of your technical interview performance.</p>
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Summary & Charts */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          <div className="bg-[#1A1D27] border border-[#2A2E3D] rounded-2xl p-8 shadow-xl">
-             <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-               <Award className="text-yellow-400" /> Professional Summary
-             </h2>
-             <p className="text-gray-300 leading-relaxed text-lg">
-                {report.professional_summary}
-             </p>
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-slate-400 mb-6">
+            <Trophy size={14} className="text-yellow-400" />
+            Interview Complete
           </div>
-
-          <div className="bg-[#1A1D27] border border-[#2A2E3D] rounded-2xl p-8 shadow-xl">
-             <h2 className="text-2xl font-bold mb-6">Domain Skill Breakdown</h2>
-             <div className="h-[400px] w-full">
-               <ResponsiveContainer width="100%" height="100%">
-                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                   <PolarGrid stroke="#3A3F58" />
-                   <PolarAngleAxis dataKey="domain" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                   <PolarRadiusAxis angle={30} domain={[0, 10]} textAnchor="middle" tick={{ fill: '#6B7280' }} />
-                   <Radar name="Observed Skill" dataKey="score" stroke="#818CF8" fill="#818CF8" fillOpacity={0.5} />
-                   <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }} />
-                 </RadarChart>
-               </ResponsiveContainer>
-             </div>
-          </div>
-
-          <div className="bg-[#1A1D27] border border-[#2A2E3D] rounded-2xl p-8 shadow-xl">
-             <h2 className="text-2xl font-bold mb-6">Resume vs. Observed Reality</h2>
-             <div className="overflow-x-auto">
-               <table className="w-full text-left">
-                 <thead>
-                   <tr className="border-b border-[#2A2E3D] text-gray-400">
-                     <th className="pb-4 font-medium">Technical Domain</th>
-                     <th className="pb-4 font-medium text-center">Resume Claim</th>
-                     <th className="pb-4 font-medium text-center">Observed Skill</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-[#2A2E3D]/50">
-                   {report.resume_vs_observed?.map((item, idx) => (
-                     <tr key={idx} className="hover:bg-[#2A2E3D]/20 transition-colors">
-                       <td className="py-4 text-gray-200 font-medium">{item.domain}</td>
-                       <td className="py-4 text-center">
-                         <span className="bg-[#2A2E3D] px-3 py-1 rounded-full text-xs font-semibold text-gray-300">
-                           {item.resume_claim}
-                         </span>
-                       </td>
-                       <td className="py-4 text-center">
-                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                           item.observed_skill === 'High' ? 'bg-green-500/20 text-green-400' :
-                           item.observed_skill === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                           'bg-red-500/20 text-red-400'
-                         }`}>
-                           {item.observed_skill}
-                         </span>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-             </div>
-          </div>
-
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+            Performance Report
+          </h1>
         </div>
 
-        {/* Right Column: Strengths & Weaknesses */}
-        <div className="space-y-8">
-          
-          <div className="bg-[#1A1D27] border border-[#2A2E3D] rounded-2xl p-8 shadow-xl">
-             <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-green-400">
-               <Trophy size={24} /> Verified Strengths
-             </h3>
-             {report.strengths?.length > 0 ? (
-               <ul className="space-y-4">
-                 {report.strengths.map((str, i) => (
-                   <li key={i} className="flex gap-3 text-gray-300">
-                     <CheckCircle className="text-green-500 flex-shrink-0 mt-0.5" size={18} />
-                     <span className="text-sm">{str}</span>
-                   </li>
-                 ))}
-               </ul>
-             ) : (
-               <p className="text-sm text-gray-500 italic">No significant strengths detected (&gt;7/10).</p>
-             )}
+        {/* Score + Recommendation */}
+        <div className="grid grid-cols-2 gap-6 mb-8">
+          <div className="bg-slate-900/50 border border-white/5 rounded-2xl p-8 flex flex-col items-center gap-4">
+            <p className="text-sm text-slate-400 font-medium">Overall Score</p>
+            <ScoreRing score={report.overall_score || session.total_score || 0} />
           </div>
-
-          <div className="bg-[#1A1D27] border border-[#2A2E3D] rounded-2xl p-8 shadow-xl">
-             <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-red-400">
-               <AlertTriangle size={24} /> Weak Areas
-             </h3>
-             {report.weak_areas?.length > 0 ? (
-               <ul className="space-y-4">
-                 {report.weak_areas.map((weak, i) => (
-                   <li key={i} className="flex gap-3 text-gray-300">
-                     <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 flex-shrink-0" />
-                     <span className="text-sm">{weak}</span>
-                   </li>
-                 ))}
-               </ul>
-             ) : (
-               <p className="text-sm text-gray-500 italic">No critical weak areas detected (&lt;4/10).</p>
-             )}
+          <div className={`border rounded-2xl p-8 flex flex-col items-center justify-center gap-3 ${recConfig.bg}`}>
+            <span className="text-5xl">{recConfig.icon}</span>
+            <p className="text-sm text-slate-400">Recommendation</p>
+            <p className={`text-2xl font-bold ${recConfig.color}`}>{report.recommendation}</p>
           </div>
+        </div>
 
-          <div className="bg-[#1A1D27] border border-blue-500/30 rounded-2xl p-8 shadow-[0_0_30px_-10px_rgba(59,130,246,0.2)]">
-             <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-blue-400">
-               <TrendingUp size={24} /> Potential Growth Areas
-             </h3>
-             {report.potential_growth?.length > 0 ? (
-               <ul className="space-y-4">
-                 {report.potential_growth.map((growth, i) => (
-                   <li key={i} className="flex gap-3 text-gray-300">
-                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                     <span className="text-sm">{growth}</span>
-                   </li>
-                 ))}
-               </ul>
-             ) : (
-               <p className="text-sm text-gray-500 italic">Insufficient cross-domain data to infer potential growth.</p>
-             )}
+        {/* Summary */}
+        <div className="bg-slate-900/50 border border-white/5 rounded-2xl p-6 mb-6">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Summary</h2>
+          <p className="text-slate-200 leading-relaxed">{report.summary}</p>
+        </div>
+
+        {/* Strengths + Areas */}
+        <div className="grid grid-cols-2 gap-6 mb-8">
+          <div className="bg-slate-900/50 border border-emerald-500/10 rounded-2xl p-6">
+            <h2 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+              <ThumbsUp size={14} /> Strengths
+            </h2>
+            <ul className="space-y-2">
+              {report.strengths?.map((s, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                  <Star size={12} className="text-emerald-400 mt-1 flex-shrink-0" />
+                  {s}
+                </li>
+              ))}
+            </ul>
           </div>
+          <div className="bg-slate-900/50 border border-yellow-500/10 rounded-2xl p-6">
+            <h2 className="text-sm font-semibold text-yellow-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+              <Target size={14} /> Areas to Improve
+            </h2>
+            <ul className="space-y-2">
+              {report.areas_for_improvement?.map((a, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                  <ChevronRight size={12} className="text-yellow-400 mt-1 flex-shrink-0" />
+                  {a}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
 
+        {/* Actions */}
+        <div className="flex gap-4 justify-center">
+          <button
+            onClick={() => navigate('/resume-upload')}
+            className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium transition-colors"
+          >
+            New Interview
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 rounded-xl text-sm font-medium transition-all"
+          >
+            Back to Home
+          </button>
         </div>
       </div>
     </div>

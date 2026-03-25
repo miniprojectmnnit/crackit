@@ -31,10 +31,12 @@ export const useInterview = (initialSessionId) => {
   const [execResult, setExecResult] = useState(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [interviewFinished, setInterviewFinished] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]);
 
   // Refs for debouncing mic start and tracking answer
   const micTimerRef = useRef(null);
   const answerRef = useRef('');
+  const lastSpokenQuestionRef = useRef(null);
 
   // Keep answerRef in sync with answer state
   useEffect(() => {
@@ -54,6 +56,7 @@ export const useInterview = (initialSessionId) => {
     stopListening,
     toggleListening,
     resetTranscript,
+    volume,
   } = useSpeechRecognition(handleTranscript);
 
   const currentQuestion = questions[currentIndex];
@@ -185,20 +188,25 @@ export const useInterview = (initialSessionId) => {
   // --- Setup code template & TTS when question changes ---
   useEffect(() => {
     if (currentQuestion) {
-      console.log(`[INTERVIEW] 📝 Question ${currentIndex + 1}/${questions.length} — [${currentQuestion?.type}] "${currentQuestion?.question_text?.substring(0, 60)}..."`);
+      if (lastSpokenQuestionRef.current !== currentQuestion._id) {
+        lastSpokenQuestionRef.current = currentQuestion._id;
+        
+        console.log(`[INTERVIEW] 📝 Question ${currentIndex + 1}/${questions.length} — [${currentQuestion?.type}] "${currentQuestion?.question_text?.substring(0, 60)}..."`);
 
-      // Stop any ongoing mic before AI speaks new question
-      stopListening();
-      resetTranscript();
-      setAnswer('');
+        // Stop any ongoing mic before AI speaks new question
+        stopListening();
+        resetTranscript();
+        setAnswer('');
 
-      speak(currentQuestion?.question_text || "");
+        setConversationHistory(prev => [...prev, { role: 'ai', text: currentQuestion.question_text }]);
+        speak(currentQuestion?.question_text || "");
 
-      if (currentQuestion.type === 'Coding') {
-        console.log('[INTERVIEW] 💻 Generated code template for coding question');
-        setCode(generateCodeTemplate(currentQuestion));
-      } else {
-        setCode(DEFAULT_CODE);
+        if (currentQuestion.type === 'Coding') {
+          console.log('[INTERVIEW] 💻 Generated code template for coding question');
+          setCode(generateCodeTemplate(currentQuestion));
+        } else {
+          setCode(DEFAULT_CODE);
+        }
       }
     }
   }, [currentIndex, currentQuestion]);
@@ -211,6 +219,7 @@ export const useInterview = (initialSessionId) => {
     console.log(`[INTERVIEW] 📤 Submitting ${answerType} answer (${answerContent.length} chars)`);
 
     try {
+      setConversationHistory(prev => [...prev, { role: 'user', text: answerContent }]);
       const res = await fetch(`http://localhost:5000/api/interviews/session/${sessionData._id}/evaluate`, {
         method: "POST",
         headers: { 
@@ -294,6 +303,7 @@ export const useInterview = (initialSessionId) => {
           msg += " " + data.evaluation.follow_up_question;
           console.log(`[INTERVIEW] 🔄 Follow-up: "${data.evaluation.follow_up_question.substring(0, 60)}..."`);
         }
+        setConversationHistory(prev => [...prev, { role: 'ai', text: msg }]);
         speak(msg);
       }
     }
@@ -353,11 +363,13 @@ export const useInterview = (initialSessionId) => {
     feedback,
     execResult,
     isEvaluating,
+    conversationHistory,
 
     // Voice input
     isListening,
     isSpeechSupported,
     toggleListening,
+    volume,
 
     // Setters
     setCode,
