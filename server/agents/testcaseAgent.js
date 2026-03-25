@@ -1,106 +1,47 @@
-const { callGeminiWithFallback } = require("../utils/llmClient");
+const { z } = require("zod");
+const { getLLM } = require("../utils/llmClient");
+const { ChatPromptTemplate } = require("@langchain/core/prompts");
 
-async function generateTestCases(questionText, description) {
+const testcaseSchema = z.object({
+  testcases: z.array(z.object({
+    input: z.string().describe("The exact parameters passed to the function (e.g. `[1,2,3]` or `nums=[1,2], target=3`)"),
+    expected_output: z.string().describe("The exact output that the correct algorithm should return")
+  })).length(5).describe("Exactly 5 test cases")
+});
 
-  const prompt = `
-================ ROLE =================
-You are a senior software tester responsible for designing test cases
-for coding interview problems.
-
+const testcasePrompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are a senior software tester responsible for designing test cases for coding interview problems.
 Your goal is to generate test cases that thoroughly validate a candidate's solution.
 
-================ PROBLEM =================
+TEST CASE STRATEGY:
+Generate EXACTLY 5 test cases including:
+1. Basic Case
+2. Typical Case
+3. Edge Case (e.g. empty, duplicate, negative)
+4. Large Case (performance)
+5. Tricky Case
 
+Ensure all testcases are different, outputs are logically correct, and inputs are realistic.`],
+  ["user", `================ PROBLEM =================
 Question:
-"${questionText}"
+"{question_text}"
 
 Description:
-"${description}"
+"{description}"`]
+]);
 
-================ TEST CASE STRATEGY =================
-
-Generate EXACTLY 5 test cases.
-
-The test cases must include:
-
-1. Basic Case
-   - A simple example demonstrating the core functionality.
-
-2. Typical Case
-   - A realistic input showing normal usage.
-
-3. Edge Case
-   - Boundary conditions such as:
-     • empty input
-     • smallest possible input
-     • duplicate values
-     • negative numbers
-     • single element
-
-4. Large Case
-   - A bigger input to simulate performance constraints.
-
-5. Tricky Case
-   - A scenario that might break incorrect implementations.
-
-================ INPUT / OUTPUT FORMAT =================
-
-Each test case must contain:
-
-input:
-A string representing the exact parameters passed to the function.
-
-Examples:
-"[1,2,3]"
-"nums=[1,2,3], target=4"
-"[[1,2],[3,4]]"
-
-expected_output:
-The exact output that the correct algorithm should return.
-
-Both input and expected_output must be strings.
-
-================ VALIDATION RULES =================
-
-Ensure that:
-
-• All test cases are different.
-• The expected output is logically correct.
-• Inputs are realistic and consistent with the problem description.
-
-================ OUTPUT FORMAT (STRICT) =================
-
-Return ONLY a JSON array with EXACTLY 5 objects.
-
-Each object must follow this schema:
-
-{
-  "input": string,
-  "expected_output": string
-}
-
-Important rules:
-
-• DO NOT include markdown
-• DO NOT include explanations
-• DO NOT include extra text
-• Output must be valid JSON
-
-Return the JSON array now.
-`;
-
+async function generateTestCases(questionText, description) {
   try {
-    const output = await callGeminiWithFallback(prompt, { temperature: 0.2 });
-    output = output.replace(/```json/g, "").replace(/```/g, "").trim();
+    const llm = getLLM({ temperature: 0.2 });
+    const structuredLlm = llm.withStructuredOutput(testcaseSchema);
+    const chain = testcasePrompt.pipe(structuredLlm);
 
-    const jsonStart = output.indexOf("[");
-    const jsonEnd = output.lastIndexOf("]");
-
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      return JSON.parse(output.substring(jsonStart, jsonEnd + 1));
-    }
-
-    return [];
+    const result = await chain.invoke({
+      question_text: questionText,
+      description: description
+    });
+    
+    return result.testcases;
 
   } catch (error) {
     console.error("TestCaseAgent Error:", error.message);

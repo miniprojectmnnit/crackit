@@ -1,44 +1,37 @@
-const { callGeminiWithFallback } = require("../utils/llmClient");
+const { z } = require("zod");
+const { getLLM } = require("../utils/llmClient");
+const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const log = require("../utils/logger");
 
-const REPORT_PROMPT = `
-You are an expert technical interviewer tasked with summarizing a candidate's performance after an interview.
+const reportSchema = z.object({
+  strengths: z.array(z.string()).describe("Array of strings for domains scoring > 7. Provide a short description for each."),
+  weak_areas: z.array(z.string()).describe("Array of strings for domains scoring < 4. Provide short description."),
+  potential_growth: z.array(z.string()).describe("Array of strings using cross-domain inference (e.g. Strong reasoning but weak DSA -> high potential)."),
+  professional_summary: z.string().describe("A professional 3-4 sentence paragraph summarizing their overall performance."),
+  resume_vs_observed: z.array(z.object({
+    domain: z.string(),
+    resume_claim: z.enum(["High", "Medium", "Low", "None"]),
+    observed_skill: z.enum(["High", "Medium", "Low", "None"])
+  })).describe("Comparing resume claim vs observed skill based on scores")
+});
 
-CANDIDATE INFO:
-{CANDIDATE_INFO}
+const reportPrompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are an expert technical interviewer tasked with summarizing a candidate's performance after an interview.
+Provide a comprehensive, objective Evaluation Report addressing the candidate's actual demonstrable skills compared to their resume claims.
+1. strengths: Use domains scoring > 7
+2. weak_areas: Use domains scoring < 4
+3. potential_growth: Cross-domain inference
+4. professional_summary: 3-4 sentence paragraph
+5. resume_vs_observed: Claimed capability vs observed capability`],
+  ["user", `CANDIDATE INFO:
+{candidate_info}
 
 RESUME TOOL SKILLS:
-{RESUME_SKILLS}
+{resume_skills}
 
 DOMAIN SCORES (Calculated dynamically during interview):
-{DOMAIN_SCORES}
-
-Provide a comprehensive, objective Evaluation Report addressing the candidate's actual demonstrable skills compared to their resume claims.
-
-Calculate & populate the following fields in the exact JSON format below:
-
-1. \`strengths\`: Array of strings for domains scoring > 7. Provide a short description for each (e.g., "Strong logical reasoning demonstrated during behavioral questions").
-2. \`weak_areas\`: Array of strings for domains scoring < 4. Provide short description (e.g., "Weak data structure fundamentals").
-3. \`potential_growth\`: Array of strings. Use cross-domain inference. (e.g., "Strong reasoning but weak DSA -> high potential for algorithmic thinking").
-4. \`professional_summary\`: A professional 3-4 sentence paragraph summarizing their overall performance.
-5. \`resume_vs_observed\`: Array of objects comparing resume claim vs observed skill. You determine the "Resume Claim" (High, Medium, Low, None) based on whether it was heavily featured, and the "Observed Skill" similarly based on their numeric score (None: <2, Low: 2-4, Medium: 4-7, High: 7-10). Only include domains they were explicitly evaluated on or that were on the resume.
-
-Return ONLY VALID JSON. No markdown wrappings.
-
-{
-  "strengths": ["string"],
-  "weak_areas": ["string"],
-  "potential_growth": ["string"],
-  "professional_summary": "string",
-  "resume_vs_observed": [
-    {
-      "domain": "string",
-      "resume_claim": "High | Medium | Low | None",
-      "observed_skill": "High | Medium | Low | None"
-    }
-  ]
-}
-`;
+{domain_scores}`]
+]);
 
 exports.generateFinalReport = async (resumeProfile) => {
   try {
@@ -47,17 +40,19 @@ exports.generateFinalReport = async (resumeProfile) => {
     const domainScoresArray = Array.from(resumeProfile.domain_scores.entries()).map(([k, v]) => `${k}: ${v.toFixed(2)}`);
     const domainScoresText = domainScoresArray.join("\\n");
 
-    const prompt = REPORT_PROMPT
-      .replace("{CANDIDATE_INFO}", candidateInfo)
-      .replace("{RESUME_SKILLS}", resumeSkills)
-      .replace("{DOMAIN_SCORES}", domainScoresText);
+    log.info("AGENT", "🤖 Calling LangChain to generate Final Evaluation Report...");
+    
+    const llm = getLLM({ temperature: 0.2 });
+    const structuredLlm = llm.withStructuredOutput(reportSchema);
+    const chain = reportPrompt.pipe(structuredLlm);
 
-    log.info("AGENT", "🤖 Calling Gemini to generate Final Evaluation Report...");
-    
-    const output = await callGeminiWithFallback(prompt, { temperature: 0.2 });
-    const jsonStr = output.replace(/^\`\`\`json/i, "").replace(/\`\`\`$/, "").trim();
-    
-    const parsedReport = JSON.parse(jsonStr);
+    const parsedReport = await chain.invoke({
+      candidate_info: candidateInfo,
+      resume_skills: resumeSkills,
+      domain_scores: domainScoresText
+    });
+
+    log.success("AGENT", "✅ Final Evaluation Report generated.");
     
     // Merge the raw scores in for UI rendering
     parsedReport.skill_scores = Object.fromEntries(resumeProfile.domain_scores);
