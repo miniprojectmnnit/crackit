@@ -28,6 +28,14 @@ const questionSchema = new mongoose.Schema({
   title: { type: String },
   description: { type: String },
   constraints: { type: String },
+  method_name: { type: String },
+  parameters: [
+    {
+      name: { type: String },
+      type: { type: String }
+    }
+  ],
+  return_type: { type: String },
   solution: { type: String },
   source_site: { type: String },
 

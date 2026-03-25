@@ -5,7 +5,7 @@ const ResumeProfile = require("../models/ResumeProfile");
 const { evaluateAnswer } = require("../agents/evaluateAgent");
 const { generateInterviewPlan } = require("../agents/interviewPlanAgent");
 const { generateFinalReport } = require("../agents/reportAgent");
-const { executeCode } = require("../services/codeExecutionService");
+const { executeCodePipeline } = require("../services/executionService");
 const log = require("../utils/logger");
 
 exports.getQuestionsForUrl = async (req, res) => {
@@ -103,7 +103,7 @@ exports.evaluateQuestion = async (req, res) => {
     log.info("EVALUATE", `🤖 Calling evaluateAgent — question type: ${question.type}, text: "${question.question_text?.substring(0, 60)}..."`);
 
     // evaluate
-    const evaluation = await evaluateAnswer(question, answer, question.solution);
+    const evaluation = await evaluateAnswer(question, answer, question.solution, session.transcript);
 
     log.success("EVALUATE", `✅ Evaluation complete — correctness: ${evaluation?.correctness}, clarity: ${evaluation?.clarity}, problem_solving: ${evaluation?.problem_solving}`);
     if (evaluation?.follow_up_question) {
@@ -162,9 +162,9 @@ exports.evaluateQuestion = async (req, res) => {
 exports.executeCodingAnswer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { question_id, code } = req.body;
+    const { question_id, code, language = "JavaScript" } = req.body;
 
-    log.info("EXECUTE", `🏃 Code execution request — session: ${id}, question: ${question_id}`);
+    log.info("EXECUTE", `🏃 Code execution request — session: ${id}, question: ${question_id}, lang: ${language}`);
     log.info("EXECUTE", `📝 Code length: ${code ? code.length : 0} chars`);
 
     const session = await InterviewSession.findById(id);
@@ -179,7 +179,7 @@ exports.executeCodingAnswer = async (req, res) => {
     const testCases = question.test_cases || [];
     log.info("EXECUTE", `🧪 Running ${testCases.length} test cases...`);
 
-    const result = await executeCode(code, testCases);
+    const result = await executeCodePipeline(code, language, question, testCases);
 
     log.success("EXECUTE", `✅ Execution complete — passed: ${result.passed}, failed: ${result.failed}${result.error ? ', error: ' + result.error : ''}`);
 
@@ -216,16 +216,34 @@ exports.getReport = async (req, res) => {
     const session = await InterviewSession.findById(id);
     const authUserId = req.query?.user_id || "mock_user_123";
     if (!session || session.user_id !== authUserId) return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
-    if (!session.resume_id) return res.status(400).json({ error: "Session has no associated resume" });
+    if (session.phase === "done" && session.final_report) {
+      log.info("REPORT", `Report already generated for session: ${id}`);
+      return res.json(session);
+    }
 
-    const resumeProfile = await ResumeProfile.findById(session.resume_id);
-    if (!resumeProfile) return res.status(404).json({ error: "Resume profile not found" });
+    // Mark phase as generating to avoid duplicate calls
+    session.phase = "generating_report";
+    await session.save();
 
-    const report = await generateFinalReport(resumeProfile);
+    const report = await generateFinalReport(session.transcript);
 
-    res.json(report);
+    // Save to session
+    session.final_report = report;
+    session.phase = "done";
+    await session.save();
+    log.success("REPORT", `✅ Report generated and saved to session: ${id}`);
+
+    res.json(session);
   } catch (err) {
     log.error("REPORT", `Failed to generate report: ${err.message}`, err);
+    // Revert phase on error if it was generating
+    try {
+       const s = await InterviewSession.findById(req.params.id);
+       if(s && s.phase === "generating_report") {
+         s.phase = "initializing";
+         await s.save();
+       }
+    } catch(e) {}
     res.status(500).json({ error: "Server error" });
   }
 };

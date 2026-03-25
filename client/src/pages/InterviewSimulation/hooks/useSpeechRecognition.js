@@ -10,8 +10,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  */
 const useSpeechRecognition = (onTranscript) => {
   const [isListening, setIsListening] = useState(false);
+  const [volume, setVolume] = useState(0); // Added volume state
   const recognitionRef = useRef(null);
   const accumulatedRef = useRef('');
+  const audioContextRef = useRef(null);
 
   // Check browser support
   const isSupported = typeof window !== 'undefined' &&
@@ -28,7 +30,8 @@ const useSpeechRecognition = (onTranscript) => {
 
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = 'en-IN'; // Better for Indian English + Hindi mixed speech
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
       let finalTranscript = accumulatedRef.current;
@@ -58,13 +61,23 @@ const useSpeechRecognition = (onTranscript) => {
     };
 
     recognition.onerror = (event) => {
-      console.error('[SPEECH] ❌ Error:', event.error);
+      console.warn('[SPEECH] ⚠️ Error:', event.error);
+
+      // Fatal errors — stop completely
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        console.error('[SPEECH] ❌ Microphone permission denied');
+        recognitionRef.current._shouldListen = false;
         setIsListening(false);
+        return;
       }
-      // Auto-restart on network errors
-      if (event.error === 'network') {
-        console.log('[SPEECH] 🔄 Network error, will auto-restart...');
+
+      // Non-fatal errors — let onend handle the restart
+      // no-speech: user was quiet, just restart (handled by onend auto-restart)
+      // network: transient network issue, restart
+      // audio-capture: device issue, try to restart
+      if (event.error === 'no-speech' || event.error === 'network' || event.error === 'audio-capture') {
+        console.log(`[SPEECH] 🔄 Non-fatal error (${event.error}), will auto-restart via onend...`);
+        // Don't change _shouldListen — onend will fire and restart
       }
     };
 
@@ -104,6 +117,39 @@ const useSpeechRecognition = (onTranscript) => {
     try {
       recognitionRef.current.start();
       setIsListening(true);
+      
+      // Start audio volume analysis
+      navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then(stream => {
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const analyser = audioContext.createAnalyser();
+          const microphone = audioContext.createMediaStreamSource(stream);
+          const javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+          
+          analyser.smoothingTimeConstant = 0.8;
+          analyser.fftSize = 1024;
+          
+          microphone.connect(analyser);
+          analyser.connect(javascriptNode);
+          javascriptNode.connect(audioContext.destination);
+          
+          javascriptNode.onaudioprocess = () => {
+            if (!recognitionRef.current?._shouldListen) return;
+            const array = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(array);
+            let values = 0;
+            const length = array.length;
+            for (let i = 0; i < length; i++) {
+              values += (array[i]);
+            }
+            const average = values / length;
+            setVolume(Math.min(100, average * 1.5)); // Boost slightly
+          };
+          
+          audioContextRef.current = { stream, audioContext, javascriptNode };
+        })
+        .catch(e => console.error("Microphone access denied for visualizer", e));
+        
     } catch (e) {
       console.error('[SPEECH] ❌ Failed to start:', e);
     }
@@ -119,6 +165,17 @@ const useSpeechRecognition = (onTranscript) => {
       // Ignore
     }
     setIsListening(false);
+    setVolume(0);
+    
+    // Stop audio context
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.javascriptNode.disconnect();
+        audioContextRef.current.audioContext.close();
+        audioContextRef.current.stream.getAudioTracks().forEach(track => track.stop());
+      } catch (e) {}
+      audioContextRef.current = null;
+    }
   }, []);
 
   const toggleListening = useCallback(() => {
@@ -140,6 +197,7 @@ const useSpeechRecognition = (onTranscript) => {
     stopListening,
     toggleListening,
     resetTranscript,
+    volume,
   };
 };
 

@@ -8,6 +8,7 @@ import QuestionPanel from './components/QuestionPanel';
 import CodeEditor from './components/CodeEditor';
 import TextAnswer from './components/TextAnswer';
 import FeedbackOverlay from './components/FeedbackOverlay';
+import TranscriptPanel from './components/TranscriptPanel';
 
 const InterviewSimulation = () => {
   const navigate = useNavigate();
@@ -19,14 +20,18 @@ const InterviewSimulation = () => {
     questions,
     session,
     code,
+    language,
     answer,
     feedback,
     execResult,
     isEvaluating,
+    conversationHistory,
     isListening,
     isSpeechSupported,
     toggleListening,
+    volume,
     setCode,
+    setLanguage,
     setAnswer,
     handleNext,
     submitAnswer,
@@ -59,11 +64,18 @@ const InterviewSimulation = () => {
         isLast={currentIndex === questions.length - 1}
       />
 
-      <div className={`flex-1 p-4 flex ${isCoding ? 'flex-row gap-4' : 'flex-col gap-6'} overflow-hidden`}>
+      <div className="flex-1 p-4 flex flex-row gap-6 overflow-hidden">
 
-        <MediaPipeline isCoding={isCoding} />
+        {/* Left Side: Media + Transcript */}
+        <div className={`flex flex-col gap-4 ${isCoding ? 'w-1/4' : 'w-1/3'}`}>
+          <MediaPipeline isCoding={isCoding} isListening={isListening} volume={volume} />
+          <div className="flex-1 overflow-hidden border border-neutral-800 rounded-xl relative">
+            <TranscriptPanel transcript={conversationHistory} />
+          </div>
+        </div>
 
-        <div className={`flex flex-col gap-4 rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden shadow-2xl ${isCoding ? 'w-2/3 h-full' : 'w-full max-w-4xl mx-auto flex-1'}`}>
+        {/* Right Side: Questions and Editor  */}
+        <div className={`flex flex-col gap-4 rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden shadow-2xl ${isCoding ? 'w-3/4 h-full' : 'w-2/3 h-full flex-1'}`}>
 
           <QuestionPanel question={currentQuestion} />
 
@@ -71,6 +83,11 @@ const InterviewSimulation = () => {
             {isCoding ? (
               <CodeEditor
                 code={code}
+                language={language}
+                onLanguageChange={(newLang) => {
+                  setLanguage(newLang);
+                  // Optionally could trigger code update here, but user can reset code themselves
+                }}
                 onCodeChange={setCode}
                 onRunCode={runCode}
                 onSubmit={submitAnswer}

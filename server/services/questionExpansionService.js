@@ -24,6 +24,9 @@ async function expandCodingQuestion(questionText) {
       constraints: problemDetails.constraints,
       difficulty: problemDetails.difficulty,
       tags: problemDetails.tags,
+      method_name: problemDetails.method_name,
+      parameters: problemDetails.parameters,
+      return_type: problemDetails.return_type,
       examples: examples && Array.isArray(examples) ? examples : [],
       test_cases: test_cases && Array.isArray(test_cases) ? test_cases : [],
       solution: solutionDetails ? solutionDetails.solution : ""

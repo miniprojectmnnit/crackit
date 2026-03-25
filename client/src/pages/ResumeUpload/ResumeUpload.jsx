@@ -47,9 +47,26 @@ const ResumeUpload = () => {
     }
   };
 
-  const handleStartInterview = () => {
-    if (resumeData && resumeData._id) {
-       navigate(`/interview?resumeId=${resumeData._id}`);
+  const [isStarting, setIsStarting] = useState(false);
+
+  const handleStartInterview = async () => {
+    if (!resumeData?._id) return;
+    setIsStarting(true);
+    try {
+      const res = await fetch("http://localhost:5000/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resume_id: resumeData._id,
+          user_id: localStorage.getItem("user_id") || "mock_user_123"
+        })
+      });
+      if (!res.ok) throw new Error("Failed to create session");
+      const { session_id } = await res.json();
+      navigate(`/interview-room/${session_id}`);
+    } catch (err) {
+      setError("Failed to start interview. Please try again.");
+      setIsStarting(false);
     }
   };
 
@@ -189,12 +206,17 @@ const ResumeUpload = () => {
           </div>
 
           <div className="flex justify-center">
-            <button
-               onClick={handleStartInterview}
-               className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white shadow-lg shadow-indigo-500/25 px-10 py-4 rounded-xl font-bold text-lg flex items-center gap-3 transition-transform hover:scale-105"
-            >
-               Start AI Technical Interview <ArrowRight size={20} />
-            </button>
+             <button
+                onClick={handleStartInterview}
+                disabled={isStarting}
+                className="bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white shadow-lg shadow-cyan-500/25 px-10 py-4 rounded-xl font-bold text-lg flex items-center gap-3 transition-all hover:scale-105"
+             >
+                {isStarting ? (
+                  <><Loader2 className="animate-spin" size={20} /> Starting Interview...</>
+                ) : (
+                  <>Start AI Interview <ArrowRight size={20} /></>
+                )}
+             </button>
           </div>
         </div>
       )}
@@ -203,3 +225,4 @@ const ResumeUpload = () => {
 };
 
 export default ResumeUpload;
+

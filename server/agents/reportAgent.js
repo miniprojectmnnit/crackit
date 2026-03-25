@@ -4,63 +4,56 @@ const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const log = require("../utils/logger");
 
 const reportSchema = z.object({
-  strengths: z.array(z.string()).describe("Array of strings for domains scoring > 7. Provide a short description for each."),
-  weak_areas: z.array(z.string()).describe("Array of strings for domains scoring < 4. Provide short description."),
-  potential_growth: z.array(z.string()).describe("Array of strings using cross-domain inference (e.g. Strong reasoning but weak DSA -> high potential)."),
-  professional_summary: z.string().describe("A professional 3-4 sentence paragraph summarizing their overall performance."),
-  resume_vs_observed: z.array(z.object({
-    domain: z.string(),
-    resume_claim: z.enum(["High", "Medium", "Low", "None"]),
-    observed_skill: z.enum(["High", "Medium", "Low", "None"])
-  })).describe("Comparing resume claim vs observed skill based on scores")
+  summary: z.string().describe("A 3-4 sentence overall summary of the candidate's performance across the full interview."),
+  strengths: z.array(z.string()).describe("3-5 specific strengths demonstrated during the interview."),
+  areas_for_improvement: z.array(z.string()).describe("3-5 specific areas where the candidate needs to improve."),
+  overall_score: z.number().int().min(0).max(100).describe("Overall interview score from 0-100."),
+  recommendation: z.enum(["Strong Hire", "Hire", "Maybe", "No Hire"]).describe("Final hiring recommendation.")
 });
 
 const reportPrompt = ChatPromptTemplate.fromMessages([
-  ["system", `You are an expert technical interviewer tasked with summarizing a candidate's performance after an interview.
-Provide a comprehensive, objective Evaluation Report addressing the candidate's actual demonstrable skills compared to their resume claims.
-1. strengths: Use domains scoring > 7
-2. weak_areas: Use domains scoring < 4
-3. potential_growth: Cross-domain inference
-4. professional_summary: 3-4 sentence paragraph
-5. resume_vs_observed: Claimed capability vs observed capability`],
-  ["user", `CANDIDATE INFO:
-{candidate_info}
+  ["system", `You are a senior engineering manager and expert technical interviewer.
+You have just conducted a complete technical interview with a candidate.
+Your job is to write a comprehensive, realistic, and objective final assessment.
 
-RESUME TOOL SKILLS:
-{resume_skills}
+Be like a real hiring manager:
+- Acknowledge specific moments from the conversation
+- Reference specific questions and answers where relevant
+- Be honest but constructive
+- Base the recommendation on the actual evidence in the transcript`],
+  ["user", `Here is the full interview transcript:
 
-DOMAIN SCORES (Calculated dynamically during interview):
-{domain_scores}`]
+{transcript}
+
+Based on this transcript, generate a final interview report.`]
 ]);
 
-exports.generateFinalReport = async (resumeProfile) => {
-  try {
-    const candidateInfo = JSON.stringify(resumeProfile.candidate_info);
-    const resumeSkills = resumeProfile.technical_skills.join(", ");
-    const domainScoresArray = Array.from(resumeProfile.domain_scores.entries()).map(([k, v]) => `${k}: ${v.toFixed(2)}`);
-    const domainScoresText = domainScoresArray.join("\\n");
+async function generateFinalReport(transcript) {
+  log.info("REPORT_AGENT", `📋 Generating final report from ${transcript.length} transcript entries...`);
 
-    log.info("AGENT", "🤖 Calling LangChain to generate Final Evaluation Report...");
-    
-    const llm = getLLM({ temperature: 0.2 });
+  const transcriptStr = transcript
+    .map(t => `${t.role.toUpperCase()}: ${t.text}`)
+    .join("\n\n");
+
+  try {
+    const llm = getLLM({ temperature: 0.3 });
     const structuredLlm = llm.withStructuredOutput(reportSchema);
     const chain = reportPrompt.pipe(structuredLlm);
 
-    const parsedReport = await chain.invoke({
-      candidate_info: candidateInfo,
-      resume_skills: resumeSkills,
-      domain_scores: domainScoresText
-    });
+    const result = await chain.invoke({ transcript: transcriptStr });
 
-    log.success("AGENT", "✅ Final Evaluation Report generated.");
-    
-    // Merge the raw scores in for UI rendering
-    parsedReport.skill_scores = Object.fromEntries(resumeProfile.domain_scores);
-
-    return parsedReport;
-
-  } catch (err) {
-    log.error("AGENT", `Report generation failed: ${err.message}`, err);
-    throw err;
+    log.success("REPORT_AGENT", `✅ Report generated — score: ${result.overall_score}, recommendation: ${result.recommendation}`);
+    return result;
+  } catch (error) {
+    log.error("REPORT_AGENT", `Report generation failed: ${error.message}`);
+    return {
+      summary: "Report generation failed.",
+      strengths: [],
+      areas_for_improvement: [],
+      overall_score: 0,
+      recommendation: "Maybe"
+    };
   }
-};
+}
+
+module.exports = { generateFinalReport };
