@@ -31,7 +31,7 @@ exports.getQuestionsForUrl = async (req, res) => {
 
 exports.createSession = async (req, res) => {
   try {
-    const { source_url, resume_id, question_count = 10 } = req.body;
+    const { source_url, resume_id, question_count = 10, context = {} } = req.body;
     const userId = req.body?.user_id || "mock_user_123";
     
     if (!userId) {
@@ -49,7 +49,7 @@ exports.createSession = async (req, res) => {
          return res.status(404).json({ error: "Resume profile not found" });
        }
        // Generate custom questions
-       const questionTexts = await generateInterviewPlan(resumeProfile, question_count);
+       const questionTexts = await generateInterviewPlan(resumeProfile, question_count, context);
        questions = questionTexts.map(text => ({ text }));
     } else if (source_url) {
       log.info("SESSION", `🌐 Fetching existing questions from URL: ${source_url}`);
@@ -66,6 +66,7 @@ exports.createSession = async (req, res) => {
       user_id: userId,
       source_url,
       resume_id,
+      context,
       questions,
       transcript: []
     });
