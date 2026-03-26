@@ -2,15 +2,20 @@ const mongoose = require("mongoose");
 
 const interviewSessionSchema = new mongoose.Schema({
   user_id: { type: String, required: true },
-  resume_id: { type: mongoose.Schema.Types.ObjectId, ref: "ResumeProfile", required: true },
+  resume_id: { type: mongoose.Schema.Types.ObjectId, ref: "ResumeProfile", required: false },
+  source_url: { type: String, required: false },
 
-  // Generated question list (array of strings)
-  questions: [{ type: String }],
+  // Generated question list
+  questions: [{
+    question_id: { type: mongoose.Schema.Types.ObjectId, ref: "Question" },
+    answer: { type: String },
+    score: { type: Number }
+  }],
 
   // LangGraph conductor state
   phase: {
     type: String,
-    enum: ["initializing", "greeting", "questioning", "evaluating", "followup", "report", "done"],
+    enum: ["initializing", "greeting", "questioning", "evaluating", "followup", "report", "generating_report", "done"],
     default: "initializing"
   },
   current_q_index: { type: Number, default: 0 },

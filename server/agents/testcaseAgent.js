@@ -16,12 +16,13 @@ Your goal is to generate test cases that thoroughly validate a candidate's solut
 TEST CASE STRATEGY:
 Generate EXACTLY 5 test cases including:
 1. Basic Case
-2. Typical Case
-3. Edge Case (e.g. empty, duplicate, negative)
-4. Large Case (performance)
+2. Typical Case 1
+3. Typical Case 2
+4. Edge Case (e.g. empty, duplicate, negative)
 5. Tricky Case
 
-Ensure all testcases are different, outputs are logically correct, and inputs are realistic.`],
+CRITICAL CONSTRAINT: You are an AI model, and you cannot reliably calculate complex algorithms (like Dynamic Programming or Graph traversals) in your head on large inputs. 
+THEREFORE: ALL test case arrays or inputs MUST be VERY SMALL (maximum 5 items). Do NOT generate "large" or "performance" test cases. Keep inputs extremely simple so you can algebraically calculate the 100% mathematically accurate expected output. Generate answers manually with extreme care.`],
   ["user", `================ PROBLEM =================
 Question:
 "{question_text}"

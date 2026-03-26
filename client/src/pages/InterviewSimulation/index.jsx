@@ -20,6 +20,7 @@ const InterviewSimulation = () => {
     questions,
     session,
     code,
+    language,
     answer,
     feedback,
     execResult,
@@ -30,6 +31,7 @@ const InterviewSimulation = () => {
     toggleListening,
     volume,
     setCode,
+    setLanguage,
     setAnswer,
     handleNext,
     submitAnswer,
@@ -81,6 +83,11 @@ const InterviewSimulation = () => {
             {isCoding ? (
               <CodeEditor
                 code={code}
+                language={language}
+                onLanguageChange={(newLang) => {
+                  setLanguage(newLang);
+                  // Optionally could trigger code update here, but user can reset code themselves
+                }}
                 onCodeChange={setCode}
                 onRunCode={runCode}
                 onSubmit={submitAnswer}
