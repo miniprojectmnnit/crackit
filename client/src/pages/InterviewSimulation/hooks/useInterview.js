@@ -388,8 +388,9 @@ export const useInterview = (initialSessionId) => {
     // Voice input
     isListening,
     isSpeechSupported,
-    toggleListening,
+    toggleListening: (text = answer) => toggleListening(text),
     volume,
+    isSpeaking,
 
     // Setters
     setCode,

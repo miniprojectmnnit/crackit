@@ -6,7 +6,7 @@ import InterviewHeader from './components/InterviewHeader';
 import MediaPipeline from './components/MediaPipeline';
 import QuestionPanel from './components/QuestionPanel';
 import CodeEditor from './components/CodeEditor';
-import TextAnswer from './components/TextAnswer';
+import UnifiedInput from '../../components/UnifiedInput';
 import FeedbackOverlay from './components/FeedbackOverlay';
 import TranscriptPanel from './components/TranscriptPanel';
 
@@ -30,6 +30,7 @@ const InterviewSimulation = () => {
     isSpeechSupported,
     toggleListening,
     volume,
+    isSpeaking,
     setCode,
     setLanguage,
     setAnswer,
@@ -95,7 +96,7 @@ const InterviewSimulation = () => {
                 execResult={execResult}
               />
             ) : (
-              <TextAnswer
+              <UnifiedInput
                 answer={answer}
                 onAnswerChange={setAnswer}
                 onSubmit={submitAnswer}
@@ -103,6 +104,8 @@ const InterviewSimulation = () => {
                 isListening={isListening}
                 isSpeechSupported={isSpeechSupported}
                 onToggleListening={toggleListening}
+                volume={volume}
+                isSpeaking={isSpeaking}
               />
             )}
           </div>
