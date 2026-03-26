@@ -14,6 +14,7 @@ const ResumeUpload = () => {
       setFile(e.target.files[0]);
       setError(null);
       setResumeData(null); // Reset on new file
+      setContext({ company: '', role: '', experience: '', focusArea: '' });
     }
   };
 
@@ -48,6 +49,11 @@ const ResumeUpload = () => {
   };
 
   const [isStarting, setIsStarting] = useState(false);
+  const [context, setContext] = useState({ company: '', role: '', experience: '', focusArea: '' });
+
+  const handleContextChange = (e) => {
+    setContext(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
 
   const handleStartInterview = async () => {
     if (!resumeData?._id) return;
@@ -58,7 +64,8 @@ const ResumeUpload = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           resume_id: resumeData._id,
-          user_id: localStorage.getItem("user_id") || "mock_user_123"
+          user_id: localStorage.getItem("user_id") || "mock_user_123",
+          context
         })
       });
       if (!res.ok) throw new Error("Failed to create session");
@@ -203,9 +210,37 @@ const ResumeUpload = () => {
                    </div>
                 </div>
              )}
+
+             {/* Context Collection Form */}
+             <div className="mt-8 bg-[#13151D] border border-[#2A2E3D] rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                   <Target className="text-pink-400" size={20} />
+                   Customize Your Interview (Optional)
+                </h3>
+                <p className="text-sm text-gray-400 mb-6">Tell us about your target role and we'll dynamically adapt the interview questions and difficulty.</p>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Target Company</label>
+                    <input type="text" name="company" value={context.company} onChange={handleContextChange} placeholder="e.g., Google, Stripe" className="w-full bg-[#1A1D27] border border-[#2A2E3D] text-white rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Target Role</label>
+                    <input type="text" name="role" value={context.role} onChange={handleContextChange} placeholder="e.g., Frontend Engineer" className="w-full bg-[#1A1D27] border border-[#2A2E3D] text-white rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Years of Experience</label>
+                    <input type="number" name="experience" value={context.experience} onChange={handleContextChange} placeholder="e.g., 2" min="0" className="w-full bg-[#1A1D27] border border-[#2A2E3D] text-white rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Specific Focus Areas</label>
+                    <input type="text" name="focusArea" value={context.focusArea} onChange={handleContextChange} placeholder="e.g., System Design, React" className="w-full bg-[#1A1D27] border border-[#2A2E3D] text-white rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 transition-colors" />
+                  </div>
+                </div>
+             </div>
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex justify-center mt-8">
              <button
                 onClick={handleStartInterview}
                 disabled={isStarting}

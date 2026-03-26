@@ -13,6 +13,14 @@ const interviewSessionSchema = new mongoose.Schema({
     score: { type: Number }
   }],
 
+  // User-provided context
+  context: {
+    company: { type: String, default: "" },
+    role: { type: String, default: "" },
+    experience: { type: String, default: "" },
+    focusArea: { type: String, default: "" },
+  },
+
   // LangGraph conductor state
   phase: {
     type: String,
