@@ -146,7 +146,11 @@ export const useInterview = (initialSessionId) => {
       }
 
       const sessionPopulated = await objRes.json();
-      const populatedQuestions = sessionPopulated.questions.map(q => q.question_id);
+      const populatedQuestions = sessionPopulated.questions.map(q => q.question_id || {
+        _id: q._id,
+        question_text: q.text,
+        type: 'General'
+      });
       
       setQuestions(populatedQuestions);
       console.log(`[INTERVIEW] ✅ Loaded ${populatedQuestions.length} questions`);
@@ -175,7 +179,11 @@ export const useInterview = (initialSessionId) => {
       }
       const sessionPopulated = await res.json();
       setSessionData(sessionPopulated);
-      const populatedQuestions = sessionPopulated.questions.map(q => q.question_id);
+      const populatedQuestions = sessionPopulated.questions.map(q => q.question_id || {
+        _id: q._id,
+        question_text: q.text,
+        type: 'General'
+      });
       setQuestions(populatedQuestions);
       console.log(`[INTERVIEW] ✅ Loaded ${populatedQuestions.length} questions for session ${sessionId}`);
     } catch (err) {

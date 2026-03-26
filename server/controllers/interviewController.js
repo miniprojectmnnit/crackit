@@ -49,8 +49,8 @@ exports.createSession = async (req, res) => {
          return res.status(404).json({ error: "Resume profile not found" });
        }
        // Generate custom questions
-       const questionIds = await generateInterviewPlan(resumeProfile, question_count);
-       questions = questionIds.map(id => ({ question_id: id }));
+       const questionTexts = await generateInterviewPlan(resumeProfile, question_count);
+       questions = questionTexts.map(text => ({ text }));
     } else if (source_url) {
       log.info("SESSION", `🌐 Fetching existing questions from URL: ${source_url}`);
       const page = await Page.findOne({ page_url: source_url });
@@ -94,10 +94,20 @@ exports.evaluateQuestion = async (req, res) => {
       return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     }
 
-    const question = await Question.findById(question_id);
+    let question = await Question.findById(question_id);
     if (!question) {
-      log.warn("EVALUATE", `Question not found: ${question_id}`);
-      return res.status(404).json({ error: "Question not found" });
+      log.warn("EVALUATE", `Question document not found: ${question_id}, checking session inline questions...`);
+      // Fallback: check if the question_id matches an embedded text question in the session
+      const embeddedQuestion = session.questions.find(q => q._id && q._id.toString() === question_id);
+      if (embeddedQuestion && embeddedQuestion.text) {
+        question = {
+          _id: embeddedQuestion._id,
+          question_text: embeddedQuestion.text,
+          type: "General"
+        };
+      } else {
+        return res.status(404).json({ error: "Question not found" });
+      }
     }
 
     log.info("EVALUATE", `🤖 Calling evaluateAgent — question type: ${question.type}, text: "${question.question_text?.substring(0, 60)}..."`);
@@ -111,11 +121,21 @@ exports.evaluateQuestion = async (req, res) => {
     }
 
     // Save to session
-    session.questions.push({
-      question_id,
-      answer,
-      score: evaluation?.correctness || 0
-    });
+    const existingQuestion = session.questions.find(q =>
+      (q.question_id && q.question_id.toString() === question_id) ||
+      (q._id && q._id.toString() === question_id)
+    );
+
+    if (existingQuestion) {
+      existingQuestion.answer = answer;
+      existingQuestion.score = evaluation?.correctness || 0;
+    } else {
+      session.questions.push({
+        question_id,
+        answer,
+        score: evaluation?.correctness || 0
+      });
+    }
 
     // Transcript logging
     session.transcript.push({ role: "candidate", text: answer });
