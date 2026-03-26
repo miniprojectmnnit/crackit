@@ -92,7 +92,8 @@ async function initSession(ws, sessionId) {
     }
 
     state.questions = questions;
-    await InterviewSession.findByIdAndUpdate(sessionId, { questions, phase: "questioning" });
+    const questionsForDb = questions.map(q => ({ text: q }));
+    await InterviewSession.findByIdAndUpdate(sessionId, { questions: questionsForDb, phase: "questioning" });
 
     // Combine greeting + first question into ONE message
     // This avoids the Gemini Live multi-turn silence bug

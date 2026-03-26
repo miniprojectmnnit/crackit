@@ -109,10 +109,16 @@ const useSpeechRecognition = (onTranscript) => {
     };
   }, [isSupported]);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback((initialText = '') => {
     if (!recognitionRef.current) return;
     console.log('[SPEECH] 🎤 Starting speech recognition...');
-    accumulatedRef.current = '';
+    
+    let baseText = '';
+    if (typeof initialText === 'string' && initialText.trim()) {
+      baseText = initialText + (initialText.endsWith(' ') ? '' : ' ');
+    }
+    accumulatedRef.current = baseText;
+    
     recognitionRef.current._shouldListen = true;
     try {
       recognitionRef.current.start();
@@ -178,11 +184,11 @@ const useSpeechRecognition = (onTranscript) => {
     }
   }, []);
 
-  const toggleListening = useCallback(() => {
+  const toggleListening = useCallback((initialText = '') => {
     if (isListening) {
       stopListening();
     } else {
-      startListening();
+      startListening(initialText);
     }
   }, [isListening, startListening, stopListening]);
 

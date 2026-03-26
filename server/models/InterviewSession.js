@@ -8,6 +8,7 @@ const interviewSessionSchema = new mongoose.Schema({
   // Generated question list
   questions: [{
     question_id: { type: mongoose.Schema.Types.ObjectId, ref: "Question" },
+    text: { type: String }, // For LLM-generated plain text questions
     answer: { type: String },
     score: { type: Number }
   }],

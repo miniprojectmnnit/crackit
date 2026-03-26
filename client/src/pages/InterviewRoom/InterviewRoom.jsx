@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import useInterviewSocket from '../../hooks/useInterviewSocket';
 import useGeminiVoice from '../InterviewSimulation/hooks/useGeminiVoice';
 import useSpeechRecognition from '../InterviewSimulation/hooks/useSpeechRecognition';
+import UnifiedInput from '../../components/UnifiedInput';
 
 // ─── Animated AI Avatar ─────────────────────────────────────────────────────
 
@@ -14,11 +15,10 @@ const AIAvatar = ({ isSpeaking, connectionState }) => (
         <div className="absolute w-32 h-32 rounded-full border border-cyan-400/30 animate-ping" style={{ animationDuration: '1.2s', animationDelay: '0.3s' }} />
       </>
     )}
-    <div className={`relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${
-      isSpeaking
-        ? 'border-4 border-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.4)] bg-gradient-to-br from-cyan-900/80 to-slate-900'
-        : 'border-2 border-cyan-800/50 bg-gradient-to-br from-slate-800 to-slate-900'
-    }`}>
+    <div className={`relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${isSpeaking
+      ? 'border-4 border-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.4)] bg-gradient-to-br from-cyan-900/80 to-slate-900'
+      : 'border-2 border-cyan-800/50 bg-gradient-to-br from-slate-800 to-slate-900'
+      }`}>
       <span className="text-5xl select-none">🤖</span>
       {isSpeaking && (
         <div className="absolute bottom-1 right-1 flex gap-[2px] items-end h-4">
@@ -29,26 +29,12 @@ const AIAvatar = ({ isSpeaking, connectionState }) => (
         </div>
       )}
     </div>
-    <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-900 ${
-      connectionState === 'connected' ? 'bg-emerald-400' :
+    <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-slate-900 ${connectionState === 'connected' ? 'bg-emerald-400' :
       connectionState === 'connecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-500'
-    }`} />
+      }`} />
   </div>
 );
 
-// ─── Voice Visualizer ────────────────────────────────────────────────────────
-
-const VoiceVisualizer = ({ isListening, volume }) => (
-  <div className="flex items-center gap-[3px] h-10">
-    {Array.from({ length: 12 }).map((_, i) => {
-      const h = isListening ? Math.max(4, (volume / 100) * 36 * (0.5 + 0.5 * Math.sin(i * 0.8))) : 4;
-      return (
-        <div key={i} className={`w-[3px] rounded-full transition-all duration-75 ${isListening ? 'bg-emerald-400' : 'bg-neutral-700'}`}
-          style={{ height: `${h}px` }} />
-      );
-    })}
-  </div>
-);
 
 // ─── Progress Bar ────────────────────────────────────────────────────────────
 
@@ -71,11 +57,10 @@ const Bubble = ({ role, text, corrected }) => {
   const isAi = role === 'interviewer';
   return (
     <div className={`flex ${isAi ? 'justify-start' : 'justify-end'}`}>
-      <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-        isAi
-          ? 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-sm'
-          : 'bg-emerald-900/50 border border-emerald-700/50 text-emerald-100 rounded-tr-sm'
-      }`}>
+      <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${isAi
+        ? 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-sm'
+        : 'bg-emerald-900/50 border border-emerald-700/50 text-emerald-100 rounded-tr-sm'
+        }`}>
         <span className={`text-[10px] font-semibold block mb-1 ${isAi ? 'text-cyan-400' : 'text-emerald-400'}`}>
           {isAi ? 'AI INTERVIEWER' : 'YOU'}
         </span>
@@ -209,10 +194,9 @@ const InterviewRoom = () => {
         </div>
         <div className="flex items-center gap-4">
           <ProgressBar current={progress.current} total={progress.total} />
-          <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${
-            connectionState === 'connected' ? 'bg-emerald-500/10 text-emerald-400' :
+          <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${connectionState === 'connected' ? 'bg-emerald-500/10 text-emerald-400' :
             connectionState === 'connecting' ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'
-          }`}>
+            }`}>
             <div className={`w-1.5 h-1.5 rounded-full ${connectionState === 'connected' ? 'bg-emerald-400' : connectionState === 'connecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'}`} />
             {connectionState}
           </div>
@@ -231,11 +215,10 @@ const InterviewRoom = () => {
               {isSpeaking ? 'Speaking...' : isListening ? 'Listening...' : 'Processing...'}
             </div>
           </div>
-          <div className={`px-4 py-2 rounded-full text-xs font-medium border ${
-            isSpeaking ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' :
+          <div className={`px-4 py-2 rounded-full text-xs font-medium border ${isSpeaking ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' :
             isListening ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' :
-            'border-white/10 bg-white/5 text-slate-400'
-          }`}>
+              'border-white/10 bg-white/5 text-slate-400'
+            }`}>
             {isSpeaking ? '🔊 AI Speaking' : isListening ? '🎙️ Mic Active' : '⏳ Processing'}
           </div>
         </div>
@@ -268,24 +251,29 @@ const InterviewRoom = () => {
             <div ref={transcriptEndRef} />
           </div>
 
-          {/* Bottom bar */}
-          <div className="border-t border-white/5 px-6 py-4 flex items-center gap-4 bg-black/20 flex-shrink-0">
-            <VoiceVisualizer isListening={isListening} volume={volume || 0} />
-            <div className="flex-1 text-sm text-slate-500">
-              {isListening
-                ? <span className="text-emerald-400">Listening... pause 3 seconds to submit your answer.</span>
-                : isSpeaking
-                  ? 'Mic paused while AI speaks'
-                  : 'Waiting...'}
-            </div>
-            {pendingAnswer && isListening && (
-              <button
-                onClick={() => submitAnswer(pendingAnswer)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors"
-              >
-                Submit Answer
-              </button>
-            )}
+          {/* Bottom input area */}
+          <div className="border-t border-white/5 bg-black/20 flex-shrink-0 min-h-[160px] max-h-[40vh] w-full flex">
+            <UnifiedInput
+              answer={pendingAnswer}
+              onAnswerChange={setPendingAnswer}
+              onSubmit={() => submitAnswer(pendingAnswer)}
+              isEvaluating={false}
+              isListening={isListening}
+              isSpeechSupported={true}
+              onToggleListening={(currentText = pendingAnswer) => {
+                if (isListening) {
+                  stopListening();
+                  listeningRef.current = false;
+                  setIsListening(false);
+                } else {
+                  startListening(currentText);
+                  listeningRef.current = true;
+                  setIsListening(true);
+                }
+              }}
+              volume={volume}
+              isSpeaking={isSpeaking}
+            />
           </div>
         </div>
       </div>
