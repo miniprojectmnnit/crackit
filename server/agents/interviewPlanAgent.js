@@ -6,7 +6,7 @@ const log = require("../utils/logger");
 const questionSchema = z.object({
   questions: z.array(z.object({
     question_text: z.string().describe("The exact question the interviewer will ask. Should sound natural when spoken."),
-    type: z.enum(["Coding", "Behavioral", "System Design", "General"]),
+    type: z.string().describe("The category of the question, e.g. 'Coding', 'Behavioral', 'Core CS', 'System Design'."),
     domain: z.string().describe("The domain this question covers, e.g. 'Programming', 'Networking', etc.")
   }))
 });

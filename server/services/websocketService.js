@@ -32,11 +32,19 @@ const evalSchema = z.object({
   followup_question: z.string().nullable()
 });
 
-async function evaluateAnswer(question, answer, transcriptContext) {
-  const evalPrompt = ChatPromptTemplate.fromMessages([
-    ["system", `You are a senior technical interviewer in a live conversation.
+async function evaluateAnswer(question, answer, transcriptContext, allowFollowup) {
+  const systemInstructions = allowFollowup 
+    ? `You are a senior technical interviewer in a live conversation.
 Keep feedback brief and spoken-aloud style — 1-2 sentences.
-Decide if a follow-up would extract more value.`],
+If the candidate's answer is incomplete or vague, you MAY ask a follow-up question to probe deeper.
+However, NEVER ask more than ONE follow-up per main question. If you have already asked a follow-up, provide concluding feedback and set needs_followup to false.`
+    : `You are a senior technical interviewer in a live conversation.
+Keep feedback brief and spoken-aloud style — 1-2 sentences.
+CRITICAL INSTRUCTION: You have ALREADY asked a follow-up for this topic. You are STRICTLY FORBIDDEN from asking any more questions.
+Provide ONLY a concluding statement or final feedback, and set needs_followup to false. Do NOT ask for elaboration or clarification.`;
+
+  const evalPrompt = ChatPromptTemplate.fromMessages([
+    ["system", systemInstructions],
     ["user", `CONVERSATION SO FAR:\n{context}\n\nCURRENT QUESTION: {question}\nCANDIDATE'S ANSWER: {answer}\n\nEvaluate this answer.`]
   ]);
   const llm = getLLM({ temperature: 0.3 });
@@ -265,7 +273,8 @@ async function handleUserAnswer(ws, sessionId, answerText) {
       .map(t => `${t.role.toUpperCase()}: ${t.text}`)
       .join("\n\n");
 
-    const evaluation = await evaluateAnswer(question, correctedAnswer, transcriptContext);
+    const allowFollowup = state.follow_up_count < 1;
+    const evaluation = await evaluateAnswer(question, correctedAnswer, transcriptContext, allowFollowup);
     log.success("WS", `✅ Score: ${evaluation.score}, follow-up: ${evaluation.needs_followup}`);
 
     // Save evaluation
@@ -285,7 +294,7 @@ async function handleUserAnswer(ws, sessionId, answerText) {
     // KEY: We combine feedback + next action into ONE message to avoid
     // the Gemini Live multi-turn silence bug. Each AI turn = one sendText call.
 
-    if (evaluation.needs_followup && state.follow_up_count < 2 && evaluation.followup_question) {
+    if (evaluation.needs_followup && state.follow_up_count < 1 && evaluation.followup_question) {
       // Combine feedback + follow-up into one message
       state.follow_up_count++;
       const combinedMsg = `${evaluation.feedback} Let me ask you a follow-up: ${evaluation.followup_question}`;
