@@ -4,11 +4,42 @@ const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const log = require("../utils/logger");
 
 const evaluationSchema = z.object({
-  correctness: z.number().int().describe("Score 0-100 for correctness"),
-  clarity: z.number().int().describe("Score 0-100 for explanation clarity"),
-  problem_solving: z.number().int().describe("Score 0-100 for problem solving skills"),
-  feedback: z.string().describe("Constructive 2-3 sentence feedback as if spoken by the interviewer"),
-  follow_up_question: z.string().nullable().describe("A follow-up question if reasoning is weak or answer is incomplete, else null")
+  correctness: z.number()
+    .int()
+    .min(0)
+    .max(100)
+    .describe("Integer score from 0 to 100 evaluating factual and logical correctness of the answer."),
+
+  clarity: z.number()
+    .int()
+    .min(0)
+    .max(100)
+    .describe("Integer score from 0 to 100 evaluating how clearly and effectively the answer is explained."),
+
+  problem_solving: z.number()
+    .int()
+    .min(0)
+    .max(100)
+    .describe("Integer score from 0 to 100 evaluating the candidate's approach, reasoning, and problem-solving ability."),
+
+  feedback: z.string()
+    .min(15)
+    .max(200)
+    .describe(
+      "Provide concise, constructive feedback (1–2 sentences) in an interviewer tone. Be direct, specific, and actionable. Avoid generic praise."
+    ),
+
+  follow_up_question: z.union([
+    z.string()
+      .min(10)
+      .max(150)
+      .describe(
+        "Ask EXACTLY ONE follow-up question only if the answer is incomplete, incorrect, or lacks reasoning. The question must probe deeper understanding or fix a gap."
+      ),
+    z.null()
+  ]).describe(
+    "Return null if the answer is strong, complete, and well-reasoned. NEVER ask more than one question."
+  )
 });
 
 const evalPrompt = ChatPromptTemplate.fromMessages([
