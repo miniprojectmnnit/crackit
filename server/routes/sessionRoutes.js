@@ -7,10 +7,15 @@ const log = require("../utils/logger");
 // POST /api/sessions — Create a new interview session from a resume
 router.post("/", async (req, res) => {
   try {
-    const { resume_id, user_id } = req.body;
+    const { resume_id, user_id, context = {}, round_type = "resume" } = req.body;
 
     if (!resume_id || !user_id) {
       return res.status(400).json({ error: "resume_id and user_id are required" });
+    }
+
+    const validRounds = ["resume", "dsa", "system_design", "hr"];
+    if (!validRounds.includes(round_type)) {
+      return res.status(400).json({ error: `Invalid round_type. Must be one of: ${validRounds.join(", ")}` });
     }
 
     const resumeProfile = await ResumeProfile.findById(resume_id);
@@ -21,6 +26,8 @@ router.post("/", async (req, res) => {
     const session = new InterviewSession({
       user_id,
       resume_id,
+      round_type,
+      context,
       questions: [],
       phase: "initializing",
       current_q_index: 0,
@@ -29,10 +36,11 @@ router.post("/", async (req, res) => {
     });
 
     await session.save();
-    log.success("SESSION", `✅ Session created: ${session._id} for user: ${user_id}`);
+    log.success("SESSION", `✅ Session [${round_type}] created: ${session._id} for user: ${user_id}`);
 
     res.status(201).json({
       session_id: session._id,
+      round_type,
       ws_url: `ws://localhost:5000/ws/interview/${session._id}`
     });
   } catch (err) {
@@ -57,7 +65,7 @@ router.get("/user/:userId", async (req, res) => {
   try {
     const sessions = await InterviewSession.find({ user_id: req.params.userId })
       .sort({ createdAt: -1 })
-      .select("_id phase total_score final_report createdAt resume_id");
+      .select("_id phase round_type total_score final_report createdAt resume_id");
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch sessions" });

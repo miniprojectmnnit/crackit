@@ -2,6 +2,9 @@ const WebSocket = require("ws");
 const InterviewSession = require("../models/InterviewSession");
 const ResumeProfile = require("../models/ResumeProfile");
 const { generateInterviewPlan } = require("../agents/interviewPlanAgent");
+const { generateDsaQuestions } = require("../agents/dsaAgent");
+const { generateSystemDesignQuestions } = require("../agents/systemDesignAgent");
+const { generateHrQuestions } = require("../agents/hrAgent");
 const { generateFinalReport } = require("../agents/reportAgent");
 const { correctTranscription } = require("../agents/sttCorrectionAgent");
 const { getLLM } = require("../utils/llmClient");
@@ -32,7 +35,7 @@ const evalSchema = z.object({
   followup_question: z.string().nullable()
 });
 
-async function evaluateAnswer(question, answer, transcriptContext, allowFollowup) {
+async function evaluateAnswer(questionTextOrObj, answer, transcriptContext, allowFollowup) {
   const systemInstructions = allowFollowup 
     ? `You are a senior technical interviewer in a live conversation.
 Keep feedback brief and spoken-aloud style — 1-2 sentences.
@@ -43,13 +46,17 @@ Keep feedback brief and spoken-aloud style — 1-2 sentences.
 CRITICAL INSTRUCTION: You have ALREADY asked a follow-up for this topic. You are STRICTLY FORBIDDEN from asking any more questions.
 Provide ONLY a concluding statement or final feedback, and set needs_followup to false. Do NOT ask for elaboration or clarification.`;
 
+  const questionString = typeof questionTextOrObj === "string" 
+      ? questionTextOrObj 
+      : `${questionTextOrObj.title || "Question"}:\n${questionTextOrObj.description || questionTextOrObj.question_text}`;
+
   const evalPrompt = ChatPromptTemplate.fromMessages([
     ["system", systemInstructions],
     ["user", `CONVERSATION SO FAR:\n{context}\n\nCURRENT QUESTION: {question}\nCANDIDATE'S ANSWER: {answer}\n\nEvaluate this answer.`]
   ]);
   const llm = getLLM({ temperature: 0.3 });
   const chain = evalPrompt.pipe(llm.withStructuredOutput(evalSchema));
-  return chain.invoke({ context: transcriptContext || "First question.", question, answer });
+  return chain.invoke({ context: transcriptContext || "First question.", question: questionString, answer });
 }
 
 // ─── Session Initialization ───────────────────────────────────────────────────
@@ -78,11 +85,36 @@ async function initSession(ws, sessionId) {
     log.success("WS", `✅ Session ${sessionId} initialized`);
     sendToClient(ws, { type: "session_ready", session_id: sessionId });
 
-    // Generate questions
-    log.info("WS", "🤖 Generating interview questions...");
+    // ── Route question generation by round_type ───────────────────────────────
+    const roundType = session.round_type || "resume";
+    const context = session.context || {};
+    log.info("WS", `🎯 Round type: ${roundType.toUpperCase()}`);
+
     let questions;
+    let roundLabel;
     try {
-      questions = await generateInterviewPlan(resumeProfile.toObject(), 10);
+      switch (roundType) {
+        case "dsa":
+          roundLabel = "DSA Round";
+          questions = await generateDsaQuestions(resumeProfile.toObject(), context);
+          break;
+
+        case "system_design":
+          roundLabel = "System Design Round";
+          questions = await generateSystemDesignQuestions(resumeProfile.toObject(), context, 10);
+          break;
+
+        case "hr":
+          roundLabel = "HR Round";
+          questions = await generateHrQuestions(resumeProfile.toObject(), context, 10);
+          break;
+
+        case "resume":
+        default:
+          roundLabel = "Resume-Based Round";
+          questions = await generateInterviewPlan(resumeProfile.toObject(), 10, context);
+          break;
+      }
     } catch (e) {
       log.error("WS", `Failed to generate questions: ${e.message}`);
       questions = [
@@ -100,14 +132,25 @@ async function initSession(ws, sessionId) {
     }
 
     state.questions = questions;
-    const questionsForDb = questions.map(q => ({ text: q }));
-    await InterviewSession.findByIdAndUpdate(sessionId, { questions: questionsForDb, phase: "questioning" });
+    const questionsToSave = questions.map(q => {
+      if (q && q._id) return { question_id: q._id };
+      return { text: q };
+    });
+    await InterviewSession.findByIdAndUpdate(sessionId, { questions: questionsToSave, phase: "questioning" });
 
-    // Combine greeting + first question into ONE message
-    // This avoids the Gemini Live multi-turn silence bug
+    // ── Build combined greeting + first question (single Gemini turn) ──────────
     const candidateName = resumeProfile.candidate_info?.name || "there";
-    const firstQuestion = questions[0];
-    const combinedOpening = `Hello ${candidateName}! Welcome to your CrackIt technical interview. I'm your AI interviewer today. We'll go through ${questions.length} questions covering your technical background. Take your time with each answer. Let's begin! Here's your first question: ${firstQuestion}`;
+    const firstQuestionObj = questions[0];
+    const firstQuestionText = firstQuestionObj && firstQuestionObj.title ? firstQuestionObj.title : firstQuestionObj;
+
+    const greetingByRound = {
+      dsa: `Hello ${candidateName}! Welcome to the DSA round of your CrackIt interview. I'll ask you 3 coding problems — one easy, one medium, and one hard. Think out loud as you work through them. Let's begin! Here's your first problem: ${firstQuestionText}`,
+      system_design: `Hello ${candidateName}! Welcome to your System Design interview. I'll ask you ${questions.length} design questions to assess how you think about large-scale systems. Take your time and walk me through your reasoning. Let's start! Here's your first question: ${firstQuestionText}`,
+      hr: `Hello ${candidateName}! Welcome to your HR and Behavioral interview. I'll ask you ${questions.length} questions to understand your experience, teamwork, and problem-solving approach. Be natural and specific with examples. Here's our first question: ${firstQuestionText}`,
+      resume: `Hello ${candidateName}! Welcome to your CrackIt technical interview. I'm your AI interviewer today. We'll go through ${questions.length} questions covering your technical background and projects. Take your time with each answer. Let's begin! Here's your first question: ${firstQuestionText}`
+    };
+
+    const combinedOpening = greetingByRound[roundType] || greetingByRound.resume;
 
     state.transcript.push({ role: "interviewer", text: combinedOpening, question_index: 0 });
     state.phase = "questioning";
@@ -125,7 +168,8 @@ async function initSession(ws, sessionId) {
       text: combinedOpening,
       phase: "questioning",
       session_id: sessionId,
-      progress: { current: 1, total: questions.length }
+      progress: { current: 1, total: questions.length },
+      question: firstQuestionObj
     });
 
   } catch (e) {
@@ -143,20 +187,23 @@ function askQuestion(ws, sessionId, feedbackToPrefix) {
 
   const { state } = session;
   const idx = state.current_q_index;
-  const question = state.questions[idx];
+  const questionObj = state.questions[idx];
   const total = state.questions.length;
 
-  if (!question) return;
+  if (!questionObj) return;
 
-  log.info("WS", `❓ Q${idx + 1}/${total}: "${question.substring(0, 60)}..."`);
+  const questionText = questionObj.title || questionObj.question_text || questionObj;
+  const logText = typeof questionObj === "string" ? questionObj : (questionObj.title || questionObj.question_text || "Coding Question");
+
+  log.info("WS", `❓ Q${idx + 1}/${total}: "${logText.substring(0, 60)}..."`);
 
   // If there's feedback to prefix (from evaluation), combine into one message
   // This avoids the multi-turn Gemini silence bug
   let fullText;
   if (feedbackToPrefix) {
-    fullText = `${feedbackToPrefix} Moving on to question ${idx + 1} of ${total}: ${question}`;
+    fullText = `${feedbackToPrefix} Moving on to question ${idx + 1} of ${total}: ${questionText}`;
   } else {
-    fullText = `Question ${idx + 1} of ${total}: ${question}`;
+    fullText = `Question ${idx + 1} of ${total}: ${questionText}`;
   }
 
   state.transcript.push({ role: "interviewer", text: fullText, question_index: idx });
@@ -173,7 +220,8 @@ function askQuestion(ws, sessionId, feedbackToPrefix) {
     text: fullText,
     phase: "questioning",
     session_id: sessionId,
-    progress: { current: idx + 1, total }
+    progress: { current: idx + 1, total },
+    question: questionObj
   });
 }
 
@@ -228,7 +276,8 @@ async function handleUserAnswer(ws, sessionId, answerText) {
   // ── Detect meta-requests (repeat/clarify) ──────────────────────────────────
   if (isMetaRequest(answerText)) {
     log.info("WS", `↩️  Meta-request detected: "${answerText}" — repeating question`);
-    const repeatMsg = `Of course! Here's the question again: ${question}`;
+    const repeatMsgText = typeof question === "string" ? question : (question.title || question.question_text || "the coding problem");
+    const repeatMsg = `Of course! Here's the question again: ${repeatMsgText}`;
 
     state.transcript.push({ role: "interviewer", text: repeatMsg, question_index: idx });
     await InterviewSession.findByIdAndUpdate(sessionId, {
@@ -240,7 +289,8 @@ async function handleUserAnswer(ws, sessionId, answerText) {
       text: repeatMsg,
       phase: "questioning",
       session_id: sessionId,
-      progress: { current: idx + 1, total: state.questions.length }
+      progress: { current: idx + 1, total: state.questions.length },
+      question
     });
     return; // Don't evaluate, don't advance — stay on same question
   }
@@ -278,11 +328,12 @@ async function handleUserAnswer(ws, sessionId, answerText) {
     log.success("WS", `✅ Score: ${evaluation.score}, follow-up: ${evaluation.needs_followup}`);
 
     // Save evaluation
+    const questionTextStore = typeof question === "string" ? question : (question.title || question.question_text || "Coding Question");
     await InterviewSession.findByIdAndUpdate(sessionId, {
       $push: {
         evaluations: {
           question_index: idx,
-          question,
+          question: questionTextStore,
           answer: correctedAnswer,
           score: evaluation.score,
           feedback: evaluation.feedback
@@ -312,7 +363,8 @@ async function handleUserAnswer(ws, sessionId, answerText) {
         text: combinedMsg,
         phase: "followup",
         session_id: sessionId,
-        progress: { current: idx + 1, total: state.questions.length }
+        progress: { current: idx + 1, total: state.questions.length },
+        question
       });
 
     } else if (idx < state.questions.length - 1) {

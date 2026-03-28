@@ -21,6 +21,13 @@ const interviewSessionSchema = new mongoose.Schema({
     focusArea: { type: String, default: "" },
   },
 
+  // Interview round type selected by candidate
+  round_type: {
+    type: String,
+    enum: ["resume", "dsa", "system_design", "hr"],
+    default: "resume"
+  },
+
   // LangGraph conductor state
   phase: {
     type: String,

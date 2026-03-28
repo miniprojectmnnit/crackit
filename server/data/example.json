@@ -1,0 +1,38 @@
+{
+  "easy": [
+    { "id": "E01", "title": "Two Sum", "topic": "Arrays", "description": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.", "hint": "Use a hash map to store complements." },
+    { "id": "E02", "title": "Reverse a String", "topic": "Strings", "description": "Write a function that reverses a string. The input string is given as an array of characters.", "hint": "Use two pointers approach." },
+    { "id": "E03", "title": "Valid Parentheses", "topic": "Stack", "description": "Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.", "hint": "Use a stack to track opening brackets." },
+    { "id": "E04", "title": "Maximum Subarray", "topic": "Arrays", "description": "Given an integer array nums, find the contiguous subarray which has the largest sum and return its sum.", "hint": "Apply Kadane's Algorithm." },
+    { "id": "E05", "title": "Fibonacci Number", "topic": "Recursion/DP", "description": "Given n, calculate F(n) where F(n) = F(n-1) + F(n-2), with F(0)=0 and F(1)=1.", "hint": "Can be solved iteratively in O(n) time and O(1) space." },
+    { "id": "E06", "title": "Binary Search", "topic": "Searching", "description": "Given a sorted array of integers, write a function to search for a target value. Return the index or -1 if not found.", "hint": "Divide the search space in half each time." },
+    { "id": "E07", "title": "Linked List Cycle Detection", "topic": "Linked List", "description": "Given the head of a linked list, determine if the linked list has a cycle in it.", "hint": "Use Floyd's Tortoise and Hare algorithm." },
+    { "id": "E08", "title": "Count Vowels", "topic": "Strings", "description": "Given a string, count the number of vowels (a, e, i, o, u) in it.", "hint": "Iterate through each character and check if it's a vowel." },
+    { "id": "E09", "title": "Find the Missing Number", "topic": "Arrays/Math", "description": "Given an array containing n distinct numbers taken from 0, 1, 2, ..., n, find the one that is missing.", "hint": "Use the sum formula: n*(n+1)/2 minus the array sum." },
+    { "id": "E10", "title": "Palindrome Check", "topic": "Strings", "description": "Given a string, determine if it is a palindrome, considering only alphanumeric characters and ignoring cases.", "hint": "Use two pointers from both ends." }
+  ],
+  "medium": [
+    { "id": "M01", "title": "Longest Substring Without Repeating Characters", "topic": "Sliding Window", "description": "Given a string s, find the length of the longest substring without repeating characters.", "hint": "Use sliding window with a hash set." },
+    { "id": "M02", "title": "LRU Cache", "topic": "Design", "description": "Design a data structure that follows the constraints of a Least Recently Used (LRU) cache.", "hint": "Combine a HashMap with a Doubly Linked List." },
+    { "id": "M03", "title": "Binary Tree Level Order Traversal", "topic": "Trees/BFS", "description": "Given the root of a binary tree, return the level order traversal of its nodes' values.", "hint": "Use BFS with a queue; process level by level." },
+    { "id": "M04", "title": "Number of Islands", "topic": "Graphs/DFS", "description": "Given a 2D grid map of '1's (land) and '0's (water), count the number of islands.", "hint": "DFS/BFS from each unvisited land cell and mark visited." },
+    { "id": "M05", "title": "Merge Intervals", "topic": "Arrays/Sorting", "description": "Given an array of intervals, merge all overlapping intervals.", "hint": "Sort by start time, then greedily merge." },
+    { "id": "M06", "title": "Top K Frequent Elements", "topic": "Heap", "description": "Given an integer array nums and an integer k, return the k most frequent elements.", "hint": "Use a min-heap of size k or bucket sort." },
+    { "id": "M07", "title": "Flatten a Nested List Iterator", "topic": "Design/Stack", "description": "Implement an iterator to flatten a nested list of integers.", "hint": "Use a stack to store elements; expand lists lazily." },
+    { "id": "M08", "title": "Subsets", "topic": "Backtracking", "description": "Given an integer array nums of unique elements, return all possible subsets (the power set).", "hint": "Use backtracking or iterative bit-masking." },
+    { "id": "M09", "title": "Coin Change", "topic": "Dynamic Programming", "description": "Given coins of different denominations and a total amount, find the minimum number of coins needed.", "hint": "Bottom-up DP: dp[i] = min coins to make amount i." },
+    { "id": "M10", "title": "Kth Largest Element in an Array", "topic": "Heap/Quickselect", "description": "Given an integer array nums and an integer k, return the kth largest element in the array.", "hint": "Use a min-heap of size k, or Quickselect for O(n) average." }
+  ],
+  "hard": [
+    { "id": "H01", "title": "Trapping Rain Water", "topic": "Two Pointers", "description": "Given n non-negative integers representing an elevation map, compute how much water it can trap after raining.", "hint": "Two-pointer approach tracking maxLeft and maxRight." },
+    { "id": "H02", "title": "Word Ladder", "topic": "BFS/Graphs", "description": "Given two words and a word list, find the length of the shortest transformation sequence from beginWord to endWord.", "hint": "BFS where each node is a word; generate neighbors by changing one letter." },
+    { "id": "H03", "title": "Serialize and Deserialize Binary Tree", "topic": "Trees", "description": "Design an algorithm to serialize and deserialize a binary tree.", "hint": "Use preorder traversal with null markers." },
+    { "id": "H04", "title": "Median of Two Sorted Arrays", "topic": "Binary Search", "description": "Given two sorted arrays nums1 and nums2, return the median of the two sorted arrays.", "hint": "Binary search on the smaller array for the correct partition." },
+    { "id": "H05", "title": "Edit Distance", "topic": "Dynamic Programming", "description": "Given two strings word1 and word2, return the minimum number of operations to convert word1 to word2.", "hint": "2D DP: dp[i][j] = min operations for word1[0..i] to word2[0..j]." },
+    { "id": "H06", "title": "Longest Consecutive Sequence", "topic": "Hashing", "description": "Given an unsorted array of integers nums, return the length of the longest consecutive elements sequence.", "hint": "Use a HashSet; only start counting from sequence beginners." },
+    { "id": "H07", "title": "Regular Expression Matching", "topic": "Dynamic Programming", "description": "Given an input string s and a pattern p, implement regular expression matching with '.' and '*'.", "hint": "2D DP with careful handling of '*' matching zero or more." },
+    { "id": "H08", "title": "Minimum Window Substring", "topic": "Sliding Window", "description": "Given strings s and t, return the minimum window in s which will contain all the characters in t.", "hint": "Sliding window with two frequency maps and a match counter." },
+    { "id": "H09", "title": "Alien Dictionary", "topic": "Topological Sort", "description": "Given a sorted dictionary of an alien language, find the order of characters.", "hint": "Build a graph from adjacent word comparisons, then topological sort." },
+    { "id": "H10", "title": "Sliding Window Maximum", "topic": "Deque/Monotonic Queue", "description": "Given an array nums and a sliding window of size k, return the max of each window.", "hint": "Use a monotonic decreasing deque; front always holds the current max index." }
+  ]
+}
