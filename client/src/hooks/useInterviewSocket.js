@@ -39,7 +39,7 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
 
           case 'ai_message':
             if (data.progress) setProgress(data.progress);
-            if (onAiMessage) onAiMessage(data.text, data.phase);
+            if (onAiMessage) onAiMessage(data.text, data.phase, data.question);
             break;
 
           case 'interview_complete':
