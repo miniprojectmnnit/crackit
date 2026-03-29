@@ -183,7 +183,7 @@ const InterviewRoom = () => {
     if (pendingAnswer && isListening) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
-        if (pendingAnswer.trim().length > 8 && listeningRef.current) {
+        if (pendingAnswer.trim().length >= 2 && listeningRef.current) {
           submitAnswer(pendingAnswer);
         }
       }, 3000);
@@ -202,8 +202,8 @@ const InterviewRoom = () => {
     setPendingAnswer('');
     resetTranscript();
 
-    sendAnswerRef.current?.(text);
-  }, [stopListening, resetTranscript]);
+    sendAnswerRef.current?.(text, code);
+  }, [stopListening, resetTranscript, code]);
 
   // Handle Code Execution to backend compiler container structure
   const runCode = async () => {

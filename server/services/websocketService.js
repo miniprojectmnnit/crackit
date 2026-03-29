@@ -7,6 +7,7 @@ const { generateSystemDesignQuestions } = require("../agents/systemDesignAgent")
 const { generateHrQuestions } = require("../agents/hrAgent");
 const { generateFinalReport } = require("../agents/reportAgent");
 const { correctTranscription } = require("../agents/sttCorrectionAgent");
+const { evaluateDsaTurn } = require("../agents/dsaInterviewAgent");
 const { getLLM } = require("../utils/llmClient");
 const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const { z } = require("zod");
@@ -144,7 +145,7 @@ async function initSession(ws, sessionId) {
     const firstQuestionText = firstQuestionObj && firstQuestionObj.title ? firstQuestionObj.title : firstQuestionObj;
 
     const greetingByRound = {
-      dsa: `Hello ${candidateName}! Welcome to the DSA round of your CrackIt interview. I'll ask you 3 coding problems — one easy, one medium, and one hard. Think out loud as you work through them. Let's begin! Here's your first problem: ${firstQuestionText}`,
+      dsa: `Hello ${candidateName}! Welcome to the DSA round of your CrackIt interview. I'll ask you 3 coding problems — one easy, one medium, and one hard. Think out loud as you work through them. Let's begin! Here's your first problem: ${firstQuestionText}. Please tell me your approach before you code.`,
       system_design: `Hello ${candidateName}! Welcome to your System Design interview. I'll ask you ${questions.length} design questions to assess how you think about large-scale systems. Take your time and walk me through your reasoning. Let's start! Here's your first question: ${firstQuestionText}`,
       hr: `Hello ${candidateName}! Welcome to your HR and Behavioral interview. I'll ask you ${questions.length} questions to understand your experience, teamwork, and problem-solving approach. Be natural and specific with examples. Here's our first question: ${firstQuestionText}`,
       resume: `Hello ${candidateName}! Welcome to your CrackIt technical interview. I'm your AI interviewer today. We'll go through ${questions.length} questions covering your technical background and projects. Take your time with each answer. Let's begin! Here's your first question: ${firstQuestionText}`
@@ -155,6 +156,7 @@ async function initSession(ws, sessionId) {
     state.transcript.push({ role: "interviewer", text: combinedOpening, question_index: 0 });
     state.phase = "questioning";
     state.current_q_index = 0;
+    state.round_type = roundType;
 
     await InterviewSession.findByIdAndUpdate(sessionId, {
       phase: "questioning",
@@ -263,7 +265,7 @@ function isMetaRequest(text) {
   return metaPatterns.some(p => p.test(lower)) || lower.length < 6;
 }
 
-async function handleUserAnswer(ws, sessionId, answerText) {
+async function handleUserAnswer(ws, sessionId, answerText, codeContent = null) {
   const session = activeSessions.get(sessionId);
   if (!session) return sendToClient(ws, { type: "error", message: "Session not active." });
 
@@ -321,75 +323,111 @@ async function handleUserAnswer(ws, sessionId, answerText) {
     const transcriptContext = state.transcript
       .slice(0, -1)
       .map(t => `${t.role.toUpperCase()}: ${t.text}`)
-      .join("\n\n");
+      .join("\\n\\n");
 
-    const allowFollowup = state.follow_up_count < 1;
-    const evaluation = await evaluateAnswer(question, correctedAnswer, transcriptContext, allowFollowup);
-    log.success("WS", `✅ Score: ${evaluation.score}, follow-up: ${evaluation.needs_followup}`);
+    const isDsaRound = state.round_type === "dsa";
 
-    // Save evaluation
-    const questionTextStore = typeof question === "string" ? question : (question.title || question.question_text || "Coding Question");
-    await InterviewSession.findByIdAndUpdate(sessionId, {
-      $push: {
-        evaluations: {
-          question_index: idx,
-          question: questionTextStore,
-          answer: correctedAnswer,
-          score: evaluation.score,
-          feedback: evaluation.feedback
-        }
-      }
-    });
+    if (isDsaRound) {
+       // --- DSA Specialized Evaluation Loop ---
+       const evaluation = await evaluateDsaTurn(question, correctedAnswer, codeContent, transcriptContext, idx, state.questions.length);
+       log.success("WS", `✅ [DSA] move_to_next: ${evaluation.move_to_next}`);
+       
+       const nextActionEntry = { role: "interviewer", text: evaluation.ai_response, question_index: idx };
+       state.transcript.push(nextActionEntry);
 
-    // ── Routing decision ─────────────────────────────────────────────────────
-    // KEY: We combine feedback + next action into ONE message to avoid
-    // the Gemini Live multi-turn silence bug. Each AI turn = one sendText call.
+       await InterviewSession.findByIdAndUpdate(sessionId, {
+         $push: { transcript: nextActionEntry, evaluations: { question_index: idx, question: (question.title || "Coding"), answer: correctedAnswer, score: evaluation.move_to_next ? 100 : null, feedback: evaluation.ai_response } }
+       });
 
-    if (evaluation.needs_followup && state.follow_up_count < 1 && evaluation.followup_question) {
-      // Combine feedback + follow-up into one message
-      state.follow_up_count++;
-      const combinedMsg = `${evaluation.feedback} Let me ask you a follow-up: ${evaluation.followup_question}`;
-      const followUpEntry = { role: "interviewer", text: combinedMsg, question_index: idx };
-      state.transcript.push(followUpEntry);
-      state.phase = "followup";
-
-      await InterviewSession.findByIdAndUpdate(sessionId, {
-        $push: { transcript: followUpEntry },
-        follow_up_count: state.follow_up_count
-      });
-
-      sendToClient(ws, {
-        type: "ai_message",
-        text: combinedMsg,
-        phase: "followup",
-        session_id: sessionId,
-        progress: { current: idx + 1, total: state.questions.length },
-        question
-      });
-
-    } else if (idx < state.questions.length - 1) {
-      // Advance index, combine feedback + next question
-      state.current_q_index++;
-      state.follow_up_count = 0;
-      await InterviewSession.findByIdAndUpdate(sessionId, {
-        current_q_index: state.current_q_index,
-        follow_up_count: 0
-      });
-      // Pass feedback as prefix — askQuestion will combine them
-      askQuestion(ws, sessionId, evaluation.feedback);
+       if (evaluation.move_to_next && idx < state.questions.length - 1) {
+          state.current_q_index++;
+          await InterviewSession.findByIdAndUpdate(sessionId, { current_q_index: state.current_q_index });
+          askQuestion(ws, sessionId, evaluation.ai_response);
+       } else if (evaluation.move_to_next && idx >= state.questions.length - 1) {
+          const wrapUpMsg = `${evaluation.ai_response} That was the last problem! You've done great. Let me now generate your performance report.`;
+          sendToClient(ws, {
+            type: "ai_message",
+            text: wrapUpMsg,
+            phase: "report",
+            session_id: sessionId,
+            progress: { current: state.questions.length, total: state.questions.length }
+          });
+          generateReport(ws, sessionId).catch(e => log.error("WS", `Report failed: ${e.message}`));
+       } else {
+          // Send response back and remain on the same question
+          state.phase = "questioning"; // Still on the same question, user is still talking/coding
+          sendToClient(ws, {
+            type: "ai_message",
+            text: evaluation.ai_response,
+            phase: "questioning",
+            session_id: sessionId,
+            progress: { current: idx + 1, total: state.questions.length },
+            question
+          });
+       }
 
     } else {
-      // All done — combine feedback + wrap-up
-      const wrapUpMsg = `${evaluation.feedback} That was the last question! You've done great. Let me now generate your performance report.`;
-      sendToClient(ws, {
-        type: "ai_message",
-        text: wrapUpMsg,
-        phase: "report",
-        session_id: sessionId,
-        progress: { current: state.questions.length, total: state.questions.length }
-      });
-      // Generate report in background
-      generateReport(ws, sessionId).catch(e => log.error("WS", `Report failed: ${e.message}`));
+       // --- Standard Feedback Flow ---
+       const allowFollowup = state.follow_up_count < 1;
+       const evaluation = await evaluateAnswer(question, correctedAnswer, transcriptContext, allowFollowup);
+       log.success("WS", `✅ Score: ${evaluation.score}, follow-up: ${evaluation.needs_followup}`);
+
+       // Save evaluation
+       const questionTextStore = typeof question === "string" ? question : (question.title || question.question_text || "Coding Question");
+       await InterviewSession.findByIdAndUpdate(sessionId, {
+         $push: {
+           evaluations: {
+             question_index: idx,
+             question: questionTextStore,
+             answer: correctedAnswer,
+             score: evaluation.score,
+             feedback: evaluation.feedback
+           }
+         }
+       });
+
+       // ── Routing decision ─────────────────────────────────────────────────────
+       if (evaluation.needs_followup && state.follow_up_count < 1 && evaluation.followup_question) {
+         state.follow_up_count++;
+         const combinedMsg = `${evaluation.feedback} Let me ask you a follow-up: ${evaluation.followup_question}`;
+         const followUpEntry = { role: "interviewer", text: combinedMsg, question_index: idx };
+         state.transcript.push(followUpEntry);
+         state.phase = "followup";
+
+         await InterviewSession.findByIdAndUpdate(sessionId, {
+           $push: { transcript: followUpEntry },
+           follow_up_count: state.follow_up_count
+         });
+
+         sendToClient(ws, {
+           type: "ai_message",
+           text: combinedMsg,
+           phase: "followup",
+           session_id: sessionId,
+           progress: { current: idx + 1, total: state.questions.length },
+           question
+         });
+
+       } else if (idx < state.questions.length - 1) {
+         state.current_q_index++;
+         state.follow_up_count = 0;
+         await InterviewSession.findByIdAndUpdate(sessionId, {
+           current_q_index: state.current_q_index,
+           follow_up_count: 0
+         });
+         askQuestion(ws, sessionId, evaluation.feedback);
+
+       } else {
+         const wrapUpMsg = `${evaluation.feedback} That was the last question! You've done great. Let me now generate your performance report.`;
+         sendToClient(ws, {
+           type: "ai_message",
+           text: wrapUpMsg,
+           phase: "report",
+           session_id: sessionId,
+           progress: { current: state.questions.length, total: state.questions.length }
+         });
+         generateReport(ws, sessionId).catch(e => log.error("WS", `Report failed: ${e.message}`));
+       }
     }
 
   } catch (e) {
@@ -479,7 +517,7 @@ function attachWebSocket(httpServer) {
         const data = JSON.parse(raw);
 
         if (data.type === "user_answer" && data.text?.trim()) {
-          await handleUserAnswer(ws, sessionId, data.text.trim());
+          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code);
 
         } else if (data.type === "speech_done") {
           // Client signals that AI speech just finished — execute pending action

@@ -14,7 +14,6 @@ const path = require("path");
 const fs = require("fs");
 const log = require("../utils/logger");
 const Question = require("../models/Question");
-const { scrapeLeetcodeProblem } = require("../tools/scrapers/leetcodeScraper");
 
 // ── Data sources ──────────────────────────────────────────────────────────────
 const GENERIC_BANK = require(path.join(__dirname, "../data/example.json"));
@@ -88,13 +87,18 @@ function findCompanyData(companyName) {
 
 async function createOrUpdateDsaQuestion(qData, difficulty) {
   let description = qData.desc || qData.description || "";
-  
-  if (qData.link && qData.link.includes("leetcode.com")) {
-    const scraped = await scrapeLeetcodeProblem(qData.link);
-    if (scraped && !scraped.includes("could not be extracted") && !scraped.includes("Invalid LeetCode URL")) {
-      description = scraped + `\n\nProblem Link: ${qData.link}`;
-    } else {
-      description = `Please solve the following problem: ${qData.link}`;
+
+  if (qData.examples && Array.isArray(qData.examples) && qData.examples.length > 0) {
+    description += "\n\nExamples:\n" + qData.examples.map((ex, i) => `Example ${i + 1}:\n${ex}`).join("\n\n");
+  }
+
+  if (qData.constraints && Array.isArray(qData.constraints) && qData.constraints.length > 0) {
+    description += "\n\nConstraints:\n- " + qData.constraints.join("\n- ");
+  }
+
+  if (description) {
+    if (qData.link) {
+      description += `\n\nProblem Link: ${qData.link}`;
     }
   } else if (qData.link) {
     description = `Please solve the following problem: ${qData.link}`;
