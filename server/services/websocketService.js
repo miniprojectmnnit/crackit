@@ -265,7 +265,7 @@ function isMetaRequest(text) {
   return metaPatterns.some(p => p.test(lower)) || lower.length < 6;
 }
 
-async function handleUserAnswer(ws, sessionId, answerText, codeContent = null) {
+async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, isFinalSubmission = false) {
   const session = activeSessions.get(sessionId);
   if (!session) return sendToClient(ws, { type: "error", message: "Session not active." });
 
@@ -320,51 +320,65 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null) {
 
   // Evaluate using the corrected answer
   try {
-    const transcriptContext = state.transcript
-      .slice(0, -1)
-      .map(t => `${t.role.toUpperCase()}: ${t.text}`)
-      .join("\\n\\n");
+    const currentQuestionHistory = state.transcript
+      .filter(t => t.question_index === idx)
+      .slice(0, -1) // Exclude the current answer we just pushed
+      .map(t => ({ role: t.role === "candidate" ? "user" : "assistant", content: t.text }));
 
     const isDsaRound = state.round_type === "dsa";
 
+    // Get current sub-phase for DSA
+    let currentSubPhase = "intuition";
+    if (isDsaRound) {
+       const dbSession = await InterviewSession.findById(sessionId);
+       currentSubPhase = dbSession.dsa_sub_phase || "intuition";
+       
+       // Force to evaluating if it's a final submission from the code editor
+       if (isFinalSubmission) {
+         currentSubPhase = "evaluating";
+       }
+    }
+
     if (isDsaRound) {
        // --- DSA Specialized Evaluation Loop ---
-       const evaluation = await evaluateDsaTurn(question, correctedAnswer, codeContent, transcriptContext, idx, state.questions.length);
-       log.success("WS", `✅ [DSA] move_to_next: ${evaluation.move_to_next}`);
-       
-       const nextActionEntry = { role: "interviewer", text: evaluation.ai_response, question_index: idx };
-       state.transcript.push(nextActionEntry);
+        const evaluation = await evaluateDsaTurn(question, correctedAnswer, codeContent, currentQuestionHistory, idx, state.questions.length, currentSubPhase);
+        log.success("WS", `✅ [DSA] sub_phase: ${evaluation.sub_phase_transition}, move_to_next: ${evaluation.move_to_next}`);
+        
+        const nextActionEntry = { role: "interviewer", text: evaluation.ai_response, question_index: idx };
+        state.transcript.push(nextActionEntry);
 
-       await InterviewSession.findByIdAndUpdate(sessionId, {
-         $push: { transcript: nextActionEntry, evaluations: { question_index: idx, question: (question.title || "Coding"), answer: correctedAnswer, score: evaluation.move_to_next ? 100 : null, feedback: evaluation.ai_response } }
-       });
+        // Update DB with evaluation and new sub-phase
+        await InterviewSession.findByIdAndUpdate(sessionId, {
+          $push: { transcript: nextActionEntry, evaluations: { question_index: idx, question: (question.title || "Coding"), answer: correctedAnswer, score: evaluation.move_to_next ? 100 : null, feedback: evaluation.ai_response } },
+          dsa_sub_phase: evaluation.sub_phase_transition
+        });
 
-       if (evaluation.move_to_next && idx < state.questions.length - 1) {
-          state.current_q_index++;
-          await InterviewSession.findByIdAndUpdate(sessionId, { current_q_index: state.current_q_index });
-          askQuestion(ws, sessionId, evaluation.ai_response);
-       } else if (evaluation.move_to_next && idx >= state.questions.length - 1) {
-          const wrapUpMsg = `${evaluation.ai_response} That was the last problem! You've done great. Let me now generate your performance report.`;
-          sendToClient(ws, {
-            type: "ai_message",
-            text: wrapUpMsg,
-            phase: "report",
-            session_id: sessionId,
-            progress: { current: state.questions.length, total: state.questions.length }
-          });
-          generateReport(ws, sessionId).catch(e => log.error("WS", `Report failed: ${e.message}`));
-       } else {
-          // Send response back and remain on the same question
-          state.phase = "questioning"; // Still on the same question, user is still talking/coding
-          sendToClient(ws, {
-            type: "ai_message",
-            text: evaluation.ai_response,
-            phase: "questioning",
-            session_id: sessionId,
-            progress: { current: idx + 1, total: state.questions.length },
-            question
-          });
-       }
+        if (evaluation.move_to_next && idx < state.questions.length - 1) {
+           state.current_q_index++;
+           await InterviewSession.findByIdAndUpdate(sessionId, { current_q_index: state.current_q_index, dsa_sub_phase: "intuition" });
+           askQuestion(ws, sessionId, evaluation.ai_response);
+        } else if (evaluation.move_to_next && idx >= state.questions.length - 1) {
+           const wrapUpMsg = `${evaluation.ai_response} That was the last problem! You've done great. Let me now generate your performance report.`;
+           sendToClient(ws, {
+             type: "ai_message",
+             text: wrapUpMsg,
+             phase: "report",
+             session_id: sessionId,
+             progress: { current: state.questions.length, total: state.questions.length }
+           });
+           generateReport(ws, sessionId).catch(e => log.error("WS", `Report failed: ${e.message}`));
+        } else {
+           // Send response back and remain on the same question
+           state.phase = "questioning"; 
+           sendToClient(ws, {
+             type: "ai_message",
+             text: evaluation.ai_response,
+             phase: "questioning",
+             session_id: sessionId,
+             progress: { current: idx + 1, total: state.questions.length },
+             question
+           });
+        }
 
     } else {
        // --- Standard Feedback Flow ---
@@ -517,7 +531,7 @@ function attachWebSocket(httpServer) {
         const data = JSON.parse(raw);
 
         if (data.type === "user_answer" && data.text?.trim()) {
-          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code);
+          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code, !!data.isFinalSubmission);
 
         } else if (data.type === "speech_done") {
           // Client signals that AI speech just finished — execute pending action

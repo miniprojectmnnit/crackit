@@ -78,9 +78,14 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
     return () => wsRef.current?.close();
   }, [sessionId, connect]);
 
-  const sendAnswer = useCallback((answerText, codeContent = null) => {
+  const sendAnswer = useCallback((answerText, codeContent = null, isFinalSubmission = false) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'user_answer', text: answerText, code: codeContent }));
+      wsRef.current.send(JSON.stringify({ 
+        type: 'user_answer', 
+        text: answerText, 
+        code: codeContent,
+        isFinalSubmission: !!isFinalSubmission 
+      }));
     }
   }, []);
 
