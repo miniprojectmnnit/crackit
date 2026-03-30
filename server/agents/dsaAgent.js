@@ -87,13 +87,46 @@ function findCompanyData(companyName) {
  * Parse string-based examples from company_questions.json into structured objects.
  * Format expected: "Input: num = 5\nOutput: 10\nExplanation: ..."
  */
+/**
+ * Infer a generic type string from a raw value string.
+ */
+function inferType(value) {
+  const v = value.trim();
+  if (v === 'true' || v === 'false') return 'boolean';
+  if (/^".*"$/.test(v)) return 'string';
+  if (/^-?\d+\.\d+$/.test(v)) return 'double';
+  if (/^-?\d+$/.test(v)) return 'integer';
+  if (v.startsWith('[') && v.endsWith(']')) {
+    const inner = v.slice(1, -1).trim();
+    if (inner === '') return 'any[]';
+    
+    // Extract first element to infer type of the array
+    let depth = 0;
+    let firstElem = '';
+    for (const ch of inner) {
+      if (ch === '[' || ch === '{') depth++;
+      else if (ch === ']' || ch === '}') depth--;
+      if (ch === ',' && depth === 0) break;
+      firstElem += ch;
+    }
+    return inferType(firstElem) + '[]';
+  }
+  return 'any';
+}
+
+/**
+ * Parse string-based examples from company_questions.json into structured objects.
+ * Format expected: "Input: num = 5\nOutput: 10\nExplanation: ..."
+ */
 function parseExamplesToTestCases(examplesArray) {
-  if (!examplesArray || !Array.isArray(examplesArray)) return { examples: [], test_cases: [] };
+  if (!examplesArray || !Array.isArray(examplesArray)) return { examples: [], test_cases: [], parameters: [], return_type: null };
 
   const parsedExamples = [];
   const testCases = [];
+  let parameters = [];
+  let return_type = null;
 
-  examplesArray.forEach(exStr => {
+  examplesArray.forEach((exStr, idx) => {
     if (typeof exStr !== 'string') return;
 
     // Matches "Input: ... " until newline or "Output:"
@@ -103,17 +136,68 @@ function parseExamplesToTestCases(examplesArray) {
     const explanationMatch = exStr.match(/Explanation:\s*(.*)/si);
 
     if (inputMatch && outputMatch) {
-      const input = inputMatch[1].trim();
-      const output = outputMatch[1].trim();
+      const inputStr = inputMatch[1].trim();
+      const outputStr = outputMatch[1].trim();
       const explanation = explanationMatch ? explanationMatch[1].trim() : "";
 
-      parsedExamples.push({ input, output, explanation });
-      testCases.push({ input, expected_output: output });
+      parsedExamples.push({ input: inputStr, output: outputStr, explanation });
+      testCases.push({ input: inputStr, expected_output: outputStr });
+
+      // Extract parameters and return type from the FIRST example to avoid conflicts
+      if (idx === 0) {
+        const params = [];
+        let currentName = '';
+        let currentValue = '';
+        let inName = true;
+        let depth = 0;
+        
+        // Add a sentinel comma at the end to process the last parameter
+        const s = inputStr.trim() + ',';
+        for (let i = 0; i < s.length; i++) {
+          const ch = s[i];
+          if (inName) {
+            if (ch === '=') {
+              inName = false;
+            } else {
+              currentName += ch;
+            }
+          } else {
+            if (ch === '[' || ch === '{') depth++;
+            else if (ch === ']' || ch === '}') depth--;
+            
+            if (ch === ',' && depth === 0) {
+              const name = currentName.trim();
+              const value = currentValue.trim();
+              if (name && value) {
+                params.push({
+                  name: name,
+                  type: inferType(value)
+                });
+              }
+              currentName = '';
+              currentValue = '';
+              inName = true;
+            } else {
+              currentValue += ch;
+            }
+          }
+        }
+        
+        if (params.length > 0) {
+          parameters = params;
+        } else {
+          // Single raw value (e.g. "Input: 2")
+          parameters = [{ name: 'input', type: inferType(inputStr) }];
+        }
+        return_type = inferType(outputStr);
+      }
     }
   });
 
-  return { examples: parsedExamples, test_cases: testCases };
+  return { examples: parsedExamples, test_cases: testCases, parameters, return_type };
 }
+
+const { generateCodeMetadata } = require("./codeGeneratorAgent");
 
 // ── Database Helper ───────────────────────────────────────────────────────────
 
@@ -138,7 +222,7 @@ async function createOrUpdateDsaQuestion(qData, difficulty) {
 
   const normalizedText = (qData.title + " " + (qData.link || "")).substring(0, 100).toLowerCase().replace(/[^a-z0-9]/g, '') || Date.now().toString();
 
-  const { examples, test_cases } = parseExamplesToTestCases(qData.examples);
+  const { examples, test_cases, parameters: regexParameters, return_type: regexReturnType } = parseExamplesToTestCases(qData.examples);
 
   let questionDoc = await Question.findOne({ normalized_text: normalizedText });
   if (!questionDoc) {
@@ -153,6 +237,15 @@ async function createOrUpdateDsaQuestion(qData, difficulty) {
        test_cases,
        source_site: qData.link ? (qData.link.includes("leetcode.com") ? "leetcode" : "external") : "internal"
      });
+     
+     // Preliminary values from regex
+     questionDoc.parameters = regexParameters;
+     questionDoc.return_type = regexReturnType;
+     
+     // Derive method name from title as fallback
+     let method_name = qData.title.replace(/ /g, '').replace(/[^a-zA-Z0-9]/g, '');
+     questionDoc.method_name = method_name.charAt(0).toLowerCase() + method_name.slice(1);
+     
      await questionDoc.save();
   } else {
      // Ensure description and test cases are updated if we got better info
@@ -172,6 +265,25 @@ async function createOrUpdateDsaQuestion(qData, difficulty) {
         await questionDoc.save();
      }
   }
+
+  // AI ENRICHMENT: If question lacks specific parameters or has generic 'any' type, call the Code Generator Agent
+  const currentParams = questionDoc.parameters || [];
+  const hasGenericType = currentParams.some(p => p.type === 'any' || p.type === 'auto') || currentParams.length === 0;
+  
+  if (hasGenericType || !questionDoc.method_name || !questionDoc.return_type) {
+    log.info("DSA_AGENT", `🤖 AI Enrichment triggered for: ${questionDoc.title}`);
+    const aiMetadata = await generateCodeMetadata(questionDoc.title, questionDoc.description, qData.examples);
+    
+    if (aiMetadata) {
+      questionDoc.method_name = aiMetadata.method_name;
+      questionDoc.parameters = aiMetadata.parameters;
+      questionDoc.return_type = aiMetadata.return_type;
+      questionDoc.starter_code = aiMetadata.starter_code;
+      await questionDoc.save();
+      log.success("DSA_AGENT", `✅ AI Enrichment complete for: ${questionDoc.title}`);
+    }
+  }
+
   return questionDoc;
 }
 
@@ -255,4 +367,4 @@ async function generateDsaQuestions(resumeProfile, context = {}) {
   return processedQuestions;
 }
 
-module.exports = { generateDsaQuestions };
+module.exports = { generateDsaQuestions, inferType, parseExamplesToTestCases };

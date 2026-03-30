@@ -36,6 +36,7 @@ const questionSchema = new mongoose.Schema({
     }
   ],
   return_type: { type: String },
+  starter_code: { type: String },
   solution: { type: String },
   source_site: { type: String },
 
