@@ -49,109 +49,56 @@ const UnifiedInput = ({
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!isEvaluating && answer.trim()) onSubmit();
-    }
+    // Left empty since textarea is removed
   };
 
   return (
-    <div className="p-4 md:p-6 flex-1 flex flex-col w-full h-full max-h-full">
+    <div className="p-4 md:p-6 flex-1 flex flex-col w-full h-full max-h-full items-center justify-center">
       {/* Input container */}
-      <div className="relative flex-1 flex flex-col min-h-[120px] bg-neutral-950 border border-neutral-800 rounded-xl overflow-hidden shadow-inner focus-within:border-cyan-500/50 transition-colors">
+      <div className="relative w-full max-w-lg min-h-[120px] bg-neutral-950/50 border border-neutral-800 rounded-3xl overflow-hidden shadow-inner flex flex-col items-center justify-center p-6">
         
-        {/* Toggle Mode Hint / Visualizer */}
-        <div className="absolute top-0 inset-x-0 h-14 bg-gradient-to-b from-black/60 to-transparent flex items-center justify-between px-4 pointer-events-none z-10">
-          <div className="flex items-center gap-2">
-            {inputMode === 'voice' && (
-              <VoiceVisualizer isListening={isListening} volume={volume} />
-            )}
-          </div>
-          
-          <div className="flex gap-2">
-            {isListening && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-red-900/80 rounded-full text-xs text-red-100 font-medium">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                Recording...
+        {/* Voice Visualizer and status */}
+        <div className="flex flex-col items-center gap-4 z-10">
+           <VoiceVisualizer isListening={isListening} volume={volume} />
+           
+           {isListening && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-red-900/80 rounded-full text-xs text-red-100 font-medium animate-pulse">
+                <span className="w-2 h-2 bg-red-500 rounded-full" />
+                Listening... Speak your answer
               </div>
             )}
             {isSpeaking && !isListening && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-cyan-900/80 rounded-full text-xs text-cyan-100 font-medium">
-                <span className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+              <div className="flex items-center gap-2 px-3 py-1 bg-cyan-900/80 rounded-full text-xs text-cyan-100 font-medium animate-pulse">
+                <span className="w-2 h-2 bg-cyan-400 rounded-full" />
                 AI Speaking...
               </div>
             )}
-          </div>
+            {!isListening && !isSpeaking && (
+               <div className="text-neutral-500 text-sm italic">
+                  Waiting...
+               </div>
+            )}
         </div>
-
-        <textarea
-          ref={textareaRef}
-          className={`w-full h-full flex-1 bg-transparent p-4 pt-10 text-neutral-200 focus:outline-none resize-none z-0 ${inputMode === 'voice' && isListening ? 'opacity-80' : ''}`}
-          placeholder={isListening ? "🎤 Listening... Speak your answer (auto-submits on silence)" : placeholder}
-          value={answer}
-          onChange={(e) => {
-            if (inputMode === 'voice') {
-               // Optional: If they start typing in voice mode, switch to text mode
-               setInputMode('text');
-               if (isListening) onToggleListening();
-            }
-            onAnswerChange(e.target.value);
-          }}
-          onKeyDown={handleKeyDown}
-        />
-        
-        {/* Bottom fading gradient to look sleek */}
-        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-neutral-950 to-transparent pointer-events-none z-10" />
       </div>
 
       {/* Controls */}
-      <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-        
-        {/* Input Mode Toggle */}
-        <div className="flex bg-neutral-900 border border-neutral-800 rounded-lg p-1 w-full sm:w-auto">
-          <button
-            onClick={() => {
-              if (inputMode !== 'text') handleToggleMode();
-            }}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-              inputMode === 'text' 
-                ? 'bg-neutral-800 text-white shadow-sm' 
-                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
-            }`}
-          >
-            <Keyboard size={16} /> Text
-          </button>
+      <div className="mt-6 flex justify-center w-full">
           
-          {isSpeechSupported && (
+        {isSpeechSupported && (
             <button
               onClick={() => {
-                if (inputMode !== 'voice') handleToggleMode();
-                else {
-                  onToggleListening(); // Allow toggling mic on/off while in voice mode
-                }
+                  onToggleListening();
               }}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                inputMode === 'voice' 
-                  ? isListening 
-                    ? 'bg-red-600/90 text-white shadow-md shadow-red-900/30' 
-                    : 'bg-neutral-800 text-white shadow-sm'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
+              className={`flex items-center justify-center gap-3 px-8 py-3 rounded-full font-semibold transition-all ${
+                  isListening 
+                    ? 'bg-red-600/90 text-white shadow-lg shadow-red-900/40 hover:bg-red-500' 
+                    : 'bg-emerald-600/90 text-white shadow-lg shadow-emerald-900/40 hover:bg-emerald-500'
               }`}
             >
-              {isListening ? <MicOff size={16} /> : <Mic size={16} />} 
-              {isListening ? 'Stop' : 'Voice'}
+              {isListening ? <MicOff size={20} /> : <Mic size={20} />} 
+              {isListening ? 'Stop Mic' : 'Start Mic'}
             </button>
-          )}
-        </div>
-
-        {/* Submit Button */}
-        <button
-          onClick={onSubmit}
-          disabled={isEvaluating || !answer.trim()}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/20"
-        >
-          <Send size={16} /> Submit Answer
-        </button>
+        )}
 
       </div>
     </div>

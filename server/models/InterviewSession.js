@@ -35,6 +35,11 @@ const interviewSessionSchema = new mongoose.Schema({
     default: "initializing"
   },
   current_q_index: { type: Number, default: 0 },
+  dsa_sub_phase: { 
+    type: String, 
+    enum: ["intuition", "coding", "evaluating"],
+    default: "intuition"
+  },
   follow_up_count: { type: Number, default: 0 },
 
   // Full conversation transcript

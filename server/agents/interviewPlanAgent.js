@@ -15,12 +15,13 @@ const plannerPrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are an expert senior technical interviewer planning a real, spoken interview.
 Generate exactly {question_count} questions that feel natural when spoken aloud.
 
-INTERVIEW STRUCTURE — approximate distribution:
-- 2-3 Resume/Project-based (referencing their actual projects)
-- 2-3 Core CS (OS, Networking, Databases)
-- 2-3 Data Structures & Algorithms
-- 1-2 Behavioral / Communication
-- 1 Logical/Analytical reasoning
+INTERVIEW STRUCTURE — strict distribution:
+- Project Questions: First ask for an introduction of a specific project, and then as the next question formulate a highly targeted follow-up question diving deeper into that project (anticipating their introduction based on the context).
+- Distribute the remaining questions across Logical Reasoning.
+- 2 Core CS questions (OS, Networking, Databases, etc.)
+- 1 question based on Achievements (identify from Candidate Resume Text)
+- 1 question based on Position of Responsibility (identify from Candidate Resume Text)
+
 
 TARGET ROLE: {role}
 TARGET COMPANY: {company}
@@ -28,14 +29,15 @@ YEARS OF EXPERIENCE: {experience}
 FOCUS AREAS: {focusArea}
 
 IMPORTANT: Questions must sound natural for a voice interview. Avoid overly technical formatting.
-Example good: "Can you walk me through how you built the PDF Juggler project and what challenges you faced?"
-Example bad: "Describe project: PDF Juggler. Challenges: [list]"
+Example good: "Can you briefly introduce your work on the PDF Juggler project? I'd love to know your main role."
+Example bad: "Describe project: PDF Juggler."
 
-If a Target Role, Target Company, or Focus Area is provided, tailor the questions appropriately. For example, if the target company is Visa, focus on payment systems and transactions. If the target role is Frontend, ask deep UI/UX and framework questions. Adjust difficulty based on years of experience.`],
+Tailor the questions appropriately to the target role and adjust difficulty based on years of experience.`],
   ["user", `CANDIDATE PROFILE:
 Name: {candidate_name}
 Skills: {skills}
 Projects: {projects}
+Candidate Resume Text: {raw_text}
 
 Generate the questions now.`]
 ]);
@@ -63,6 +65,7 @@ exports.generateInterviewPlan = async (resumeProfile, questionCount = 10, contex
       candidate_name: candidateName,
       skills,
       projects,
+      raw_text: (resumeProfile.raw_text || "").substring(0, 3000),
       role,
       company,
       experience,

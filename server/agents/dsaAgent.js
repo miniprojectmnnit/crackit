@@ -14,7 +14,6 @@ const path = require("path");
 const fs = require("fs");
 const log = require("../utils/logger");
 const Question = require("../models/Question");
-const { scrapeLeetcodeProblem } = require("../tools/scrapers/leetcodeScraper");
 
 // ── Data sources ──────────────────────────────────────────────────────────────
 const GENERIC_BANK = require(path.join(__dirname, "../data/example.json"));
@@ -84,23 +83,62 @@ function findCompanyData(companyName) {
   return null;
 }
 
+/**
+ * Parse string-based examples from company_questions.json into structured objects.
+ * Format expected: "Input: num = 5\nOutput: 10\nExplanation: ..."
+ */
+function parseExamplesToTestCases(examplesArray) {
+  if (!examplesArray || !Array.isArray(examplesArray)) return { examples: [], test_cases: [] };
+
+  const parsedExamples = [];
+  const testCases = [];
+
+  examplesArray.forEach(exStr => {
+    if (typeof exStr !== 'string') return;
+
+    // Matches "Input: ... " until newline or "Output:"
+    const inputMatch = exStr.match(/Input:\s*(.*?)(?=\n|Output:|$)/si);
+    // Matches "Output: ... " until newline or "Explanation:"
+    const outputMatch = exStr.match(/Output:\s*(.*?)(?=\n|Explanation:|$)/si);
+    const explanationMatch = exStr.match(/Explanation:\s*(.*)/si);
+
+    if (inputMatch && outputMatch) {
+      const input = inputMatch[1].trim();
+      const output = outputMatch[1].trim();
+      const explanation = explanationMatch ? explanationMatch[1].trim() : "";
+
+      parsedExamples.push({ input, output, explanation });
+      testCases.push({ input, expected_output: output });
+    }
+  });
+
+  return { examples: parsedExamples, test_cases: testCases };
+}
+
 // ── Database Helper ───────────────────────────────────────────────────────────
 
 async function createOrUpdateDsaQuestion(qData, difficulty) {
   let description = qData.desc || qData.description || "";
-  
-  if (qData.link && qData.link.includes("leetcode.com")) {
-    const scraped = await scrapeLeetcodeProblem(qData.link);
-    if (scraped && !scraped.includes("could not be extracted") && !scraped.includes("Invalid LeetCode URL")) {
-      description = scraped + `\n\nProblem Link: ${qData.link}`;
-    } else {
-      description = `Please solve the following problem: ${qData.link}`;
+
+  if (qData.examples && Array.isArray(qData.examples) && qData.examples.length > 0) {
+    description += "\n\nExamples:\n" + qData.examples.map((ex, i) => `Example ${i + 1}:\n${ex}`).join("\n\n");
+  }
+
+  if (qData.constraints && Array.isArray(qData.constraints) && qData.constraints.length > 0) {
+    description += "\n\nConstraints:\n- " + qData.constraints.join("\n- ");
+  }
+
+  if (description) {
+    if (qData.link) {
+      description += `\n\nProblem Link: ${qData.link}`;
     }
   } else if (qData.link) {
     description = `Please solve the following problem: ${qData.link}`;
   }
 
   const normalizedText = (qData.title + " " + (qData.link || "")).substring(0, 100).toLowerCase().replace(/[^a-z0-9]/g, '') || Date.now().toString();
+
+  const { examples, test_cases } = parseExamplesToTestCases(qData.examples);
 
   let questionDoc = await Question.findOne({ normalized_text: normalizedText });
   if (!questionDoc) {
@@ -111,13 +149,26 @@ async function createOrUpdateDsaQuestion(qData, difficulty) {
        difficulty: difficulty,
        title: qData.title,
        description: description,
+       examples,
+       test_cases,
        source_site: qData.link ? (qData.link.includes("leetcode.com") ? "leetcode" : "external") : "internal"
      });
      await questionDoc.save();
   } else {
-     // Ensure description is updated if we got a better one
+     // Ensure description and test cases are updated if we got better info
+     let updated = false;
      if (!questionDoc.description || questionDoc.description.startsWith("Please solve")) {
         questionDoc.description = description;
+        updated = true;
+     }
+
+     if ((!questionDoc.test_cases || questionDoc.test_cases.length === 0) && test_cases.length > 0) {
+        questionDoc.test_cases = test_cases;
+        questionDoc.examples = examples;
+        updated = true;
+     }
+
+     if (updated) {
         await questionDoc.save();
      }
   }

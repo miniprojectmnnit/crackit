@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import useInterviewSocket from '../../hooks/useInterviewSocket';
 import useGeminiVoice from '../InterviewSimulation/hooks/useGeminiVoice';
 import useSpeechRecognition from '../InterviewSimulation/hooks/useSpeechRecognition';
@@ -91,7 +92,20 @@ const InterviewRoom = () => {
   const [isListening, setIsListening] = useState(false);
   const [phase, setPhase] = useState('connecting');
   const [pendingAnswer, setPendingAnswer] = useState('');
-  const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [isChatMinimized, setIsChatMinimized] = useState(true);
+  const [popoutMessage, setPopoutMessage] = useState(null);
+
+  useEffect(() => {
+    if (transcript.length > 0 && isChatMinimized) {
+      const lastMsg = transcript[transcript.length - 1];
+      setPopoutMessage({
+        role: lastMsg.role,
+        text: lastMsg.text,
+      });
+      const timer = setTimeout(() => setPopoutMessage(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [transcript, isChatMinimized]);
   
   // ── Code Editor State ──
   const [currentQuestion, setCurrentQuestion] = useState(null);
@@ -124,9 +138,28 @@ const InterviewRoom = () => {
   }, [speak]);
 
   // Code Template Autopopulation
+  const lastQuestionIdRef = useRef(null);
+  const lastLanguageRef = useRef(language);
+
   useEffect(() => {
-    if (currentQuestion && currentQuestion.type === 'Coding' && code === '// Write your solution here...') {
-      setCode(generateCodeTemplate(currentQuestion, language));
+    if (currentQuestion && currentQuestion.type === 'Coding') {
+      const qId = currentQuestion._id || currentQuestion.question_id;
+      const isNewQuestion = qId !== lastQuestionIdRef.current;
+      const isNewLanguage = language !== lastLanguageRef.current;
+
+      // If it's a new question OR language changed, update the code
+      if (isNewQuestion || isNewLanguage) {
+        // Only clear test results on new question
+        if (isNewQuestion) {
+            setExecResult(null);
+        }
+
+        // Generate the new template for the selected language
+        setCode(generateCodeTemplate(currentQuestion, language));
+        
+        lastQuestionIdRef.current = qId;
+        lastLanguageRef.current = language;
+      }
     }
   }, [currentQuestion, language]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -183,7 +216,7 @@ const InterviewRoom = () => {
     if (pendingAnswer && isListening) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
-        if (pendingAnswer.trim().length > 8 && listeningRef.current) {
+        if (pendingAnswer.trim().length >= 2 && listeningRef.current) {
           submitAnswer(pendingAnswer);
         }
       }, 3000);
@@ -191,7 +224,7 @@ const InterviewRoom = () => {
     return () => clearTimeout(silenceTimerRef.current);
   }, [pendingAnswer]);
 
-  const submitAnswer = useCallback((text) => {
+  const submitAnswer = useCallback((text, codeContent = code, isFinal = false) => {
     if (!text || !text.trim()) return;
     stopListening();
     listeningRef.current = false;
@@ -202,8 +235,8 @@ const InterviewRoom = () => {
     setPendingAnswer('');
     resetTranscript();
 
-    sendAnswerRef.current?.(text);
-  }, [stopListening, resetTranscript]);
+    sendAnswerRef.current?.(text, codeContent, isFinal);
+  }, [stopListening, resetTranscript, code]);
 
   // Handle Code Execution to backend compiler container structure
   const runCode = async () => {
@@ -282,94 +315,164 @@ const InterviewRoom = () => {
                onLanguageChange={(newLang) => setLanguage(newLang)}
                onCodeChange={setCode}
                onRunCode={runCode}
-               onSubmit={() => submitAnswer(code)}
+               onSubmit={() => submitAnswer("I have completed the implementation. Please review my solution.", code, true)}
                isEvaluating={isEvaluatingCode}
                execResult={execResult}
              />
           </div>
 
           {/* Floating AI Chat Window */}
-          <div className={`absolute bottom-6 right-6 z-50 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] drop-shadow-2xl ${isChatMinimized ? 'w-72 h-14' : 'w-[420px] h-[600px] max-h-[85vh]'}`}>
-             <div className="w-full h-full flex flex-col bg-[#0f111a]/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.8)]">
-                
-                {/* Chat Header */}
+          {/* Floating AI Chat Window */}
+          <motion.div 
+            drag
+            dragMomentum={false}
+            dragConstraints={{ left: -1000, right: 0, top: -800, bottom: 0 }}
+            initial={false}
+            animate={{
+              width: isChatMinimized ? 80 : 420,
+              height: isChatMinimized ? 80 : 600,
+              borderRadius: isChatMinimized ? '50%' : '16px',
+            }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="absolute bottom-6 right-6 z-50 overflow-visible drop-shadow-2xl bg-[#0f111a] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex flex-col cursor-grab active:cursor-grabbing border-white/10"
+            style={{ 
+               pointerEvents: 'auto',
+               touchAction: 'none',
+               borderWidth: isChatMinimized ? '0px' : '1px'
+            }}
+          >
+             {isChatMinimized ? (
+                // Draggable Circle UI
                 <div 
-                   className="flex items-center justify-between p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-white/10 cursor-pointer hover:bg-slate-800 transition-colors group"
-                   onClick={() => setIsChatMinimized(!isChatMinimized)}
+                   className="w-full h-full flex items-center justify-center relative touch-none hover:bg-white/5 transition-colors rounded-full"
+                   onDoubleClick={() => {
+                      setIsChatMinimized(false);
+                      setPopoutMessage(null);
+                   }}
+                   onClick={() => {
+                      setIsChatMinimized(false);
+                      setPopoutMessage(null);
+                   }}
                 >
-                   <div className="flex items-center gap-3 pl-1">
-                       <div className="relative">
-                           <div className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400'}`} />
-                           <div className={`absolute inset-0 w-2 h-2 rounded-full ${isSpeaking ? 'bg-cyan-500' : 'bg-emerald-500'}`} />
-                       </div>
-                       <div className="text-sm font-semibold tracking-wide text-slate-200 flex items-center gap-2">
-                           Interview Assistant
-                           {isSpeaking && <span className="text-[10px] text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded-full border border-cyan-400/20">Speaking...</span>}
-                       </div>
-                   </div>
-                   <button className="text-slate-400 group-hover:text-white transition-colors w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/10">
-                      {isChatMinimized ? (
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      )}
-                   </button>
+                   <span className="text-4xl relative z-10 pointer-events-none drop-shadow-lg">🤖</span>
+                   {isSpeaking && (
+                      <div className="absolute inset-0 rounded-full border-4 border-cyan-400 animate-ping opacity-50 pointer-events-none" />
+                   )}
+                   {isListening && (
+                      <div className="absolute inset-0 rounded-full border-4 border-emerald-400 animate-pulse opacity-50 pointer-events-none" />
+                   )}
+                   {/* Popout bubble */}
+                   <AnimatePresence>
+                     {popoutMessage && (
+                       <motion.div
+                         initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                         animate={{ opacity: 1, scale: 1, x: 0 }}
+                         exit={{ opacity: 0, scale: 0.8, x: 10 }}
+                         transition={{ type: 'spring', damping: 20 }}
+                         className="absolute bottom-[110%] md:-left-[280px] md:top-2 md:bottom-auto w-64 p-3 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 rounded-2xl text-xs text-slate-200 shadow-2xl pointer-events-none z-[60]"
+                       >
+                         <div className={`font-bold mb-1.5 uppercase tracking-wider text-[10px] ${popoutMessage.role === 'interviewer' ? 'text-cyan-400' : 'text-emerald-400'} opacity-90`}>
+                            {popoutMessage.role === 'interviewer' ? 'AI Interviewer' : 'You'}
+                         </div>
+                         <div className="line-clamp-4 leading-relaxed whitespace-pre-wrap">{popoutMessage.text}</div>
+                         
+                         {/* Tip arrow */}
+                         <div className="absolute -bottom-2 right-6 md:-right-2 md:top-6 md:bottom-auto w-4 h-4 bg-slate-800/95 border-r border-b border-slate-700/50 transform rotate-45 md:-rotate-45" />
+                       </motion.div>
+                     )}
+                   </AnimatePresence>
                 </div>
-
-                {!isChatMinimized && (
-                   <div className="flex-1 flex flex-col overflow-hidden">
-                      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar" style={{ scrollBehavior: 'smooth' }}>
-                         {transcript.length === 0 && (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-3">
-                                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-slate-700">🎙️</div>
-                                <div className="text-xs">Waiting for conversation...</div>
-                            </div>
-                         )}
-                         {transcript.map((msg, i) => (
-                           <Bubble key={i} role={msg.role} text={msg.text} corrected={msg.corrected} />
-                         ))}
-
-                         {/* Live interim transcript */}
-                         {pendingAnswer && isListening && (
-                           <div className="flex justify-end animate-fade-in-up">
-                             <div className="max-w-[85%] px-3 py-2.5 rounded-2xl rounded-tr-sm text-xs bg-emerald-950/40 border border-emerald-800/30 text-emerald-300/80 italic shadow-sm">
-                               <span className="text-[9px] font-semibold block mb-1 text-emerald-500/60 uppercase tracking-wider">You</span>
-                               {pendingAnswer}
-                               <span className="inline-block ml-1 w-1 h-2.5 bg-emerald-400 animate-pulse rounded-sm align-middle" />
-                             </div>
+             ) : (
+                // Full Chat Window
+                <div 
+                   className="w-full h-full flex flex-col overflow-hidden w-[420px] h-[600px] cursor-auto" 
+                   onPointerDown={(e) => {
+                       const isInteractive = e.target.closest('button') || e.target.closest('.custom-scrollbar') || e.target.closest('textarea') || e.target.closest('input');
+                       if (isInteractive) e.stopPropagation();
+                   }}
+                >
+                    {/* Chat Header (Drag Handle) */}
+                    <div 
+                       className="flex items-center justify-between p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-white/10 cursor-grab active:cursor-grabbing hover:bg-slate-800 transition-colors group flex-shrink-0"
+                    >
+                       <div className="flex items-center gap-3 pl-1 pointer-events-none">
+                           <div className="relative">
+                               <div className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-cyan-400 animate-ping' : isListening ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                               <div className={`absolute inset-0 w-2 h-2 rounded-full ${isSpeaking ? 'bg-cyan-500' : isListening ? 'bg-emerald-500' : 'bg-slate-600'}`} />
                            </div>
-                         )}
-                         <div ref={transcriptEndRef} />
-                      </div>
-                      
-                      {/* Floating Input Area */}
-                      <div className="shrink-0 bg-black/60 border-t border-white/10 p-2 min-h-[120px]">
-                         <UnifiedInput
-                           answer={pendingAnswer}
-                           onAnswerChange={setPendingAnswer}
-                           onSubmit={() => submitAnswer(pendingAnswer)}
-                           isEvaluating={false}
-                           isListening={isListening}
-                           isSpeechSupported={true}
-                           onToggleListening={(currentText = pendingAnswer) => {
-                             if (isListening) {
-                               stopListening();
-                               listeningRef.current = false;
-                               setIsListening(false);
-                             } else {
-                               startListening(currentText);
-                               listeningRef.current = true;
-                               setIsListening(true);
-                             }
-                           }}
-                           volume={volume}
-                           isSpeaking={isSpeaking}
-                         />
-                      </div>
-                   </div>
-                )}
-             </div>
-          </div>
+                           <div className="text-sm font-semibold tracking-wide text-slate-200 flex items-center gap-2">
+                               Interview Assistant
+                               {isSpeaking && <span className="text-[10px] text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded-full border border-cyan-400/20">Speaking...</span>}
+                               {isListening && <span className="text-[10px] text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded-full border border-emerald-400/20">Listening...</span>}
+                           </div>
+                       </div>
+                       <div className="flex items-center gap-1 z-10 hidden group-hover:block" />
+                       <button className="text-slate-400 hover:text-white transition-colors w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/10" 
+                          onPointerDown={(e) => { e.stopPropagation(); }}
+                          onClick={() => setIsChatMinimized(true)}
+                       >
+                          <svg className="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                       </button>
+                    </div>
+
+                    <div className="flex-1 flex flex-col overflow-hidden bg-[#0f111a]/95 cursor-auto">
+                       <div 
+                         className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar" 
+                         style={{ scrollBehavior: 'smooth' }}
+                       >
+                          {transcript.length === 0 && (
+                             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-3">
+                                 <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-slate-700">🎙️</div>
+                                 <div className="text-xs">Waiting for conversation...</div>
+                             </div>
+                          )}
+                          {transcript.map((msg, i) => (
+                            <Bubble key={i} role={msg.role} text={msg.text} corrected={msg.corrected} />
+                          ))}
+
+                          {/* Live interim transcript */}
+                          {pendingAnswer && isListening && (
+                            <div className="flex justify-end animate-fade-in-up">
+                              <div className="max-w-[85%] px-3 py-2.5 rounded-2xl rounded-tr-sm text-xs bg-emerald-950/40 border border-emerald-800/30 text-emerald-300/80 italic shadow-sm">
+                                <span className="text-[9px] font-semibold block mb-1 text-emerald-500/60 uppercase tracking-wider">You</span>
+                                {pendingAnswer}
+                                <span className="inline-block ml-1 w-1 h-2.5 bg-emerald-400 animate-pulse rounded-sm align-middle" />
+                              </div>
+                            </div>
+                          )}
+                          <div ref={transcriptEndRef} />
+                       </div>
+                       
+                       {/* Floating Input Area */}
+                       <div className="shrink-0 bg-black/60 border-t border-white/10 p-2 min-h-[120px]">
+                          <UnifiedInput
+                            answer={pendingAnswer}
+                            onAnswerChange={setPendingAnswer}
+                            onSubmit={() => submitAnswer(pendingAnswer)}
+                            isEvaluating={false}
+                            isListening={isListening}
+                            isSpeechSupported={true}
+                            onToggleListening={(currentText = pendingAnswer) => {
+                              if (isListening) {
+                                stopListening();
+                                listeningRef.current = false;
+                                setIsListening(false);
+                              } else {
+                                startListening(currentText);
+                                listeningRef.current = true;
+                                setIsListening(true);
+                              }
+                            }}
+                            volume={volume}
+                            isSpeaking={isSpeaking}
+                          />
+                       </div>
+                    </div>
+                </div>
+             )}
+          </motion.div>
 
         </div>
       ) : (

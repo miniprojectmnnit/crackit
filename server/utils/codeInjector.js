@@ -12,8 +12,20 @@ function injectCode(userCode, language, problemDetails, testCases) {
     throw new Error("Problem details are required for code injection.");
   }
 
-  // Graceful fallback for legacy questions created before schema update
-  const method_name = problemDetails.method_name || (problemDetails.title ? problemDetails.title.replace(/ /g, '') : 'solve');
+  // Determine method name based on language conventions (Must match frontend template logic)
+  let method_name = problemDetails.method_name;
+  const lang = language.toLowerCase();
+
+  if (!method_name && problemDetails.title) {
+    if (lang === "python") {
+      method_name = problemDetails.title.toLowerCase().replace(/ /g, '_').replace(/[^a-z0-9_]/g, '');
+    } else {
+      method_name = problemDetails.title.replace(/ /g, '').replace(/[^a-zA-Z0-9]/g, '');
+      method_name = method_name.charAt(0).toLowerCase() + method_name.slice(1);
+    }
+  }
+  if (!method_name) method_name = 'solve';
+
   const parameters = problemDetails.parameters || [{ name: "input", type: "any" }];
   
   // Parse and normalize test inputs
