@@ -1,55 +1,79 @@
 import React, { useEffect, useRef } from 'react';
+import { Bot, User } from 'lucide-react';
 
 const TranscriptPanel = ({ transcript }) => {
   const panelRef = useRef(null);
 
   useEffect(() => {
-    // Auto-scroll to bottom on new message
     if (panelRef.current) {
       panelRef.current.scrollTop = panelRef.current.scrollHeight;
     }
   }, [transcript]);
 
   return (
-    <div className="flex flex-col h-full bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden shadow-2xl">
-      <div className="bg-neutral-800 px-4 py-3 border-b border-neutral-700">
-        <h3 className="text-sm font-semibold text-neutral-200">Interview Transcript</h3>
+    <div className="flex flex-col h-full bg-[#0f0f0f] border border-neutral-800 rounded-xl overflow-hidden shadow-xl">
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-neutral-900/80 backdrop-blur border-b border-neutral-800">
+        <h3 className="text-sm font-semibold text-neutral-200">
+          Interview Transcript
+        </h3>
+        <span className="text-[10px] text-neutral-500 font-mono">
+          Live
+        </span>
       </div>
-      
-      <div 
+
+      {/* Messages */}
+      <div
         ref={panelRef}
-        className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin scrollbar-thumb-neutral-700"
       >
         {(!transcript || transcript.length === 0) ? (
-          <div className="text-center text-neutral-500 text-sm mt-10">
-            No conversation history yet.
+          <div className="flex flex-col items-center justify-center text-neutral-500 text-sm mt-20">
+            <div className="opacity-60 mb-2">💬</div>
+            No conversation yet
           </div>
         ) : (
           transcript.map((msg, index) => {
             const isAi = msg.role === 'ai';
+
             return (
-              <div 
+              <div
                 key={index}
-                className={`flex flex-col max-w-[90%] animate-in fade-in slide-in-from-bottom-2 duration-300 ${
-                  isAi ? 'self-start' : 'self-end'
-                }`}
-              >
-                <span className={`text-[10px] mb-1 px-1 font-medium ${isAi ? 'text-cyan-500' : 'text-emerald-500 self-end'}`}>
-                  {isAi ? 'AI INTERVIEWER' : 'YOU'}
-                </span>
-                <div 
-                  className={`p-3 rounded-2xl text-sm leading-relaxed ${
-                    isAi 
-                      ? 'bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-tl-sm' 
-                      : 'bg-emerald-900/40 border border-emerald-800/60 text-emerald-100 rounded-tr-sm'
+                className={`flex items-end gap-2 ${isAi ? 'justify-start' : 'justify-end'
                   }`}
+              >
+                {/* Avatar */}
+                {isAi && (
+                  <div className="w-7 h-7 flex items-center justify-center rounded-full bg-cyan-500/20 text-cyan-400">
+                    <Bot size={14} />
+                  </div>
+                )}
+
+                {/* Bubble */}
+                <div
+                  className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed transition ${isAi
+                      ? 'bg-neutral-800 border border-neutral-700 text-neutral-300 rounded-bl-sm'
+                      : 'bg-emerald-500 text-black font-medium rounded-br-sm'
+                    }`}
                 >
                   {msg.text}
                 </div>
+
+                {!isAi && (
+                  <div className="w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+                    <User size={14} />
+                  </div>
+                )}
               </div>
             );
           })
         )}
+      </div>
+
+      {/* Footer Hint */}
+      <div className="px-4 py-2 text-xs text-neutral-500 border-t border-neutral-800 bg-neutral-950">
+        Responses are evaluated in real-time
       </div>
     </div>
   );
