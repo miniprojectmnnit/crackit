@@ -1,4 +1,6 @@
 const WebSocket = require("ws");
+const { clerkClient } = require("@clerk/express");
+const { verifyToken } = require("@clerk/backend");
 const InterviewSession = require("../models/InterviewSession");
 const ResumeProfile = require("../models/ResumeProfile");
 const { generateInterviewPlan } = require("../agents/interviewPlanAgent");
@@ -62,10 +64,15 @@ Provide ONLY a concluding statement or final feedback, and set needs_followup to
 
 // ─── Session Initialization ───────────────────────────────────────────────────
 
-async function initSession(ws, sessionId) {
+async function initSession(ws, sessionId, authUserId) {
   try {
     const session = await InterviewSession.findById(sessionId);
     if (!session) return sendToClient(ws, { type: "error", message: "Session not found." });
+
+    if (session.userId !== authUserId) {
+      log.warn("WS", `Access denied: user ${authUserId} tried to access session ${sessionId} owned by ${session.userId}`);
+      return sendToClient(ws, { type: "error", message: "Access denied." });
+    }
 
     const resumeProfile = await ResumeProfile.findById(session.resume_id);
     if (!resumeProfile) return sendToClient(ws, { type: "error", message: "Resume not found." });
@@ -522,9 +529,30 @@ function attachWebSocket(httpServer) {
     });
   });
 
-  wss.on("connection", (ws, request, sessionId) => {
-    log.info("WS", `🔌 Connected — session: ${sessionId}`);
-    initSession(ws, sessionId);
+  wss.on("connection", async (ws, request, sessionId) => {
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const token = url.searchParams.get("token");
+    let authUserId = null;
+
+    if (!token) {
+      log.warn("WS", `❌ Connection rejected: No token provided for session ${sessionId}`);
+      ws.close(4001, "No authentication token provided");
+      return;
+    }
+
+    try {
+      const decoded = await verifyToken(token, { 
+        secretKey: process.env.CLERK_SECRET_KEY 
+      });
+      authUserId = decoded.sub;
+      log.info("WS", `🔌 Authenticated — user: ${authUserId}, session: ${sessionId}`);
+    } catch (e) {
+      log.error("WS", `❌ Token verification failed: ${e.message}`);
+      ws.close(4002, "Invalid authentication token");
+      return;
+    }
+
+    initSession(ws, sessionId, authUserId);
 
     ws.on("message", async (raw) => {
       try {

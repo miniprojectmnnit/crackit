@@ -1,3 +1,4 @@
+const { getAuth } = require('@clerk/express');
 const { GoogleGenAI } = require("@google/genai");
 const log = require("../utils/logger");
 require("dotenv").config();
@@ -11,6 +12,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
  */
 const getLiveToken = async (req, res) => {
   try {
+    const { userId } = getAuth(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
     log.info("TOKEN", `🔑 Generating ephemeral Gemini Live API token...`);
 
     const client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });

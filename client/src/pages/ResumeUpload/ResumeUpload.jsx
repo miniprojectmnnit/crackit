@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Upload, FileText, CheckCircle, Target, ArrowRight, Loader2, Award,
-  Code2, Brain, Users, Cpu, Briefcase, Sparkles, Building2
+  Code2, Brain, Users, Cpu, Briefcase, Sparkles, Building2,
+  FileText, Upload, CheckCircle, ArrowRight, Award, Loader2, Target
 } from 'lucide-react';
+import { useAuthFetch } from '../../auth/useAuthFetch';
 
 // ── Round definitions ──────────────────────────────────────────────────────────
 const ROUNDS = [
@@ -76,6 +77,7 @@ const ResumeUpload = () => {
   });
   const [startingRound, setStartingRound] = useState(null);
   const navigate = useNavigate();
+  const authFetch = useAuthFetch();
 
   const handleFileChange = (e) => {
     if (e.target.files?.[0]) {
@@ -110,12 +112,11 @@ const ResumeUpload = () => {
     setError(null);
     const formData = new FormData();
     formData.append("resume", file);
-    formData.append("user_id", localStorage.getItem("user_id") || "mock_user_123");
     
     // We implicitly hold the context in state
     
     try {
-      const res = await fetch("http://localhost:5000/api/resume/upload", { 
+      const res = await authFetch("http://localhost:5000/api/resume/upload", { 
         method: "POST", 
         body: formData 
       });
@@ -137,12 +138,11 @@ const ResumeUpload = () => {
     setStartingRound(roundId);
     setError(null);
     try {
-      const res = await fetch("http://localhost:5000/api/sessions", {
+      const res = await authFetch("http://localhost:5000/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           resume_id: resumeData._id,
-          user_id: localStorage.getItem("user_id") || "mock_user_123",
           round_type: roundId,
           context: context 
         })

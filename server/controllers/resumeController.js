@@ -3,15 +3,17 @@ const fs = require("fs");
 const path = require("path");
 const log = require("../utils/logger");
 const ResumeProfile = require("../models/ResumeProfile");
+const { getAuth } = require('@clerk/express');
 const { parseResumeText } = require("../agents/resumeAgent");
 
 exports.uploadResume = async (req, res) => {
   try {
-    // 1. Get uploaded file and optional user ID
     const file = req.file;
-    const userId = req.body?.user_id || "mock_user_123";
+    const auth = getAuth(req);
+    const userId = auth.userId;
 
     if (!userId) {
+      if (file) fs.unlinkSync(file.path);
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -36,16 +38,19 @@ exports.uploadResume = async (req, res) => {
     }
 
     log.info("RESUME", `📄 Extracted ${rawText.length} characters. Calling Agent...`);
-
     // Clean up file
-    fs.unlinkSync(file.path);
+    try {
+      fs.unlinkSync(file.path);
+    } catch (e) {
+      log.warn("RESUME", `Failed to unlink file: ${e.message}`);
+    }
 
     // 3. Parse via Agent
     const extractedData = await parseResumeText(rawText);
 
     // 4. Save to Database
     const resume = new ResumeProfile({
-      user_id: userId,
+      userId: userId,
       candidate_info: extractedData.candidate_info,
       technical_skills: extractedData.technical_skills,
       projects: extractedData.projects,

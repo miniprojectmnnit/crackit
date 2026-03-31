@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const resumeProfileSchema = new mongoose.Schema({
-  user_id: { type: String, required: true },
+  userId: { type: String, required: true },
   
   candidate_info: {
     name: { type: String },

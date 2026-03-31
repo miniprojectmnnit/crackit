@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
 import { Loader2, History, Calendar, Star, ChevronDown, ChevronUp, AlertCircle, MessageSquare, Clock, BarChart2, Video, Code, ArrowRight } from 'lucide-react';
+import { useAuthFetch } from '../../auth/useAuthFetch';
 
 const InterviewHistory = () => {
   const navigate = useNavigate();
@@ -10,10 +10,12 @@ const InterviewHistory = () => {
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
 
+  const authFetch = useAuthFetch();
+
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/interviews/user/${localStorage.getItem("user_id") || "mock_user_123"}`);
+        const res = await authFetch(`http://localhost:5000/api/interviews/history`);
         if (!res.ok) throw new Error("Failed to fetch interview history");
         const data = await res.json();
         setSessions(data);
@@ -25,7 +27,7 @@ const InterviewHistory = () => {
     };
     
     fetchHistory();
-  }, []);
+  }, [authFetch]);
 
   const toggleExpand = (id) => {
     setExpandedId(expandedId === id ? null : id);

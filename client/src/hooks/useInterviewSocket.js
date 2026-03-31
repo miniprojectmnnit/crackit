@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 
 /**
  * useInterviewSocket — manages the WebSocket connection to the Interview LangGraph conductor.
@@ -10,17 +11,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswerCorrected) => {
   const [connectionState, setConnectionState] = useState('disconnected');
   const [progress, setProgress] = useState({ current: 0, total: 10 });
+  const { getToken } = useAuth();
   const wsRef = useRef(null);
 
   const connect = useCallback(() => {
     if (!sessionId) return;
     setConnectionState('connecting');
 
-    const wsUrl = `ws://localhost:5000/ws/interview/${sessionId}`;
-    console.log('[WS] Connecting to:', wsUrl);
+    const startConnection = async () => {
+      const token = await getToken();
+      const wsUrl = `ws://localhost:5000/ws/interview/${sessionId}?token=${token}`;
+      console.log('[WS] Connecting to:', wsUrl.split('?')[0]);
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
     ws.onopen = () => {
       console.log('[WS] Connected');
@@ -67,11 +71,14 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
       setConnectionState('error');
     };
 
-    ws.onclose = () => {
-      console.log('[WS] Closed');
-      setConnectionState('disconnected');
+      ws.onclose = () => {
+        console.log('[WS] Closed');
+        setConnectionState('disconnected');
+      };
     };
-  }, [sessionId]);
+
+    startConnection();
+  }, [sessionId, getToken, onAiMessage, onInterviewComplete, onAnswerCorrected]);
 
   useEffect(() => {
     if (sessionId) connect();

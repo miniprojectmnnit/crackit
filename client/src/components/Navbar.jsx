@@ -1,10 +1,11 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { UserButton, SignedIn, SignedOut } from "@clerk/clerk-react";
 
 const Navbar = () => {
   return (
-    <header className="sticky top-0 z-50 glass border-b border-white/5">
+    <header className="sticky top-0 z-50 glass border-b border-white/5 backdrop-blur-md">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 group">
@@ -20,13 +21,23 @@ const Navbar = () => {
           </span>
         </Link>
 
-        {/* Navigation Links (if needed in the future) */}
-        <nav className="hidden md:flex items-center gap-8">
-          <Link to="/resume-upload" className="text-lg font-medium text-zinc-400 hover:text-white transition-colors">Resume Interview</Link>
-          <Link to="/feed" className="text-lg font-medium text-zinc-400 hover:text-white transition-colors flex items-center gap-1">History feed</Link>
+        {/* Navigation Links */}
+        <nav className="flex items-center gap-8">
+          <SignedIn>
+            <Link to="/resume-upload" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Resume Interview</Link>
+            <Link to="/feed" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">History</Link>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
+          <SignedOut>
+            <Link to="/sign-in" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Sign In</Link>
+            <Link 
+              to="/sign-up" 
+              className="px-4 py-2 rounded-full bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-sm font-medium hover:from-emerald-500/30 hover:to-cyan-500/30 transition-all"
+            >
+              Get Started
+            </Link>
+          </SignedOut>
         </nav>
-
-
       </div>
     </header>
   );

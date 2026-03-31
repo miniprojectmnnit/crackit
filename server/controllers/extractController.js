@@ -1,3 +1,4 @@
+const { getAuth } = require('@clerk/express');
 const Page = require("../models/Page");
 const Question = require("../models/Question");
 
@@ -7,6 +8,8 @@ const { upsertQuestions } = require("../services/questionService");
 const log = require("../utils/logger");
 
 exports.extractQuestions = async (req, res) => {
+    const { userId } = getAuth(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const { url, article_text } = req.body;
 
