@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
+const { clerkMiddleware } = require('@clerk/express');
 require("dotenv").config({ override: true });
 
 console.log("[ENV Check] CLERK_SECRET_KEY exists:", !!process.env.CLERK_SECRET_KEY);
@@ -11,7 +12,12 @@ const app = express();
 const server = http.createServer(app);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(clerkMiddleware({
+  publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
+  secretKey: process.env.CLERK_SECRET_KEY
+}));
 
 const MONGODB_URI = process.env.MONGODB_URI;
 mongoose.connect(MONGODB_URI)
@@ -33,12 +39,19 @@ app.use("/api/sessions", require("./routes/sessionRoutes"));
 app.post("/api/extract", require("./controllers/extractController").extractQuestions);
 app.post("/extract", require("./controllers/extractController").extractQuestions);
 
-app.get("/", (req, res) => res.send("CrackIt API is running"));
+app.get("/", (req, res) => res.json({ status: "running", message: "CrackIt API" }));
+
+// 404 Catch-all
+app.use((req, res, next) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
 
 // Error handling
 app.use((err, req, res, next) => {
   console.error("Unhandled Error:", err.message);
-  res.status(500).json({ error: "Internal Server Error" });
+  res.status(res.statusCode === 200 ? 500 : res.statusCode).json({ 
+    error: err.message || "Internal Server Error" 
+  });
 });
 
 // Attach WebSocket server

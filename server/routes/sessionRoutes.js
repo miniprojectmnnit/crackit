@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { getAuth } = require('@clerk/express');
 const InterviewSession = require("../models/InterviewSession");
 const ResumeProfile = require("../models/ResumeProfile");
 const log = require("../utils/logger");
@@ -7,10 +8,14 @@ const log = require("../utils/logger");
 // POST /api/sessions — Create a new interview session from a resume
 router.post("/", async (req, res) => {
   try {
-    const { resume_id, user_id, context = {}, round_type = "resume" } = req.body;
-
-    if (!resume_id || !user_id) {
-      return res.status(400).json({ error: "resume_id and user_id are required" });
+    const { resume_id, context = {}, round_type = "resume" } = req.body;
+    const auth = getAuth(req);
+    const userId = auth.userId;
+    
+    if (!resume_id || !userId) {
+      return res.status(userId ? 400 : 401).json({ 
+        error: userId ? "resume_id is required" : "Unauthorized" 
+      });
     }
 
     const validRounds = ["resume", "dsa", "system_design", "hr"];
@@ -24,7 +29,7 @@ router.post("/", async (req, res) => {
     }
 
     const session = new InterviewSession({
-      user_id,
+      userId,
       resume_id,
       round_type,
       context,
@@ -36,7 +41,7 @@ router.post("/", async (req, res) => {
     });
 
     await session.save();
-    log.success("SESSION", `✅ Session [${round_type}] created: ${session._id} for user: ${user_id}`);
+    log.success("SESSION", `✅ Session [${round_type}] created: ${session._id} for user: ${userId}`);
 
     res.status(201).json({
       session_id: session._id,
@@ -52,18 +57,30 @@ router.post("/", async (req, res) => {
 // GET /api/sessions/:id — Get session info and report
 router.get("/:id", async (req, res) => {
   try {
+    const auth = getAuth(req);
+    const userId = auth.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
     const session = await InterviewSession.findById(req.params.id);
     if (!session) return res.status(404).json({ error: "Session not found" });
+
+    if (session.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
     res.json(session);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch session" });
   }
 });
 
-// GET /api/sessions/user/:userId — Get all sessions for a user
-router.get("/user/:userId", async (req, res) => {
+// GET /api/sessions/history — Get all sessions for the authenticated user
+router.get("/history", async (req, res) => {
   try {
-    const sessions = await InterviewSession.find({ user_id: req.params.userId })
+    const auth = getAuth(req);
+    const userId = auth.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const sessions = await InterviewSession.find({ userId: userId })
       .sort({ createdAt: -1 })
       .select("_id phase round_type total_score final_report createdAt resume_id");
     res.json(sessions);

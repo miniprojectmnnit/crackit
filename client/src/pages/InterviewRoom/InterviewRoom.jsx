@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuthFetch } from '../../auth/useAuthFetch';
 import { motion, AnimatePresence } from 'framer-motion';
 import useInterviewSocket from '../../hooks/useInterviewSocket';
 import useGeminiVoice from '../InterviewSimulation/hooks/useGeminiVoice';
@@ -7,7 +8,7 @@ import useSpeechRecognition from '../InterviewSimulation/hooks/useSpeechRecognit
 import UnifiedInput from '../../components/UnifiedInput';
 import CodeEditor from '../InterviewSimulation/components/CodeEditor';
 import QuestionPanel from '../InterviewSimulation/components/QuestionPanel';
-import { generateCodeTemplate } from '../InterviewSimulation/utils/codeTemplate';
+import { generateCodeTemplate } from '../../lib/codeTemplate';
 
 // ─── Animated AI Avatar ─────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ const Bubble = ({ role, text, corrected }) => {
 const InterviewRoom = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const authFetch = useAuthFetch();
 
   const [transcript, setTranscript] = useState([]);
   const [isListening, setIsListening] = useState(false);
@@ -244,14 +246,13 @@ const InterviewRoom = () => {
     setIsEvaluatingCode(true);
     setExecResult(null);
     try {
-      const res = await fetch(`http://localhost:5000/api/interviews/session/${sessionId}/execute`, {
+      const res = await authFetch(`http://localhost:5000/api/interviews/session/${sessionId}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question_id: currentQuestion._id || currentQuestion.question_id,
           code,
-          language,
-          user_id: localStorage.getItem("user_id") || "mock_user_123"
+          language
         })
       });
 

@@ -22,7 +22,7 @@ router.get("/live-token", getLiveToken);
 router.post("/session", createSession);
 router.get("/session/:id", getSession);
 router.get("/session/:id/report", getReport);
-router.get("/user/:userId", getUserSessions);
+router.get("/history", getUserSessions);
 
 // Question action endpoints
 router.post("/session/:id/evaluate", evaluateQuestion);

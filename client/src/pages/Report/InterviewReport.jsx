@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuthFetch } from '../../auth/useAuthFetch';
 import { Trophy, ThumbsUp, Target, ChevronRight, Loader2, Star } from 'lucide-react';
 
 const recommendationConfig = {
@@ -40,12 +41,13 @@ const InterviewReport = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const authFetch = useAuthFetch();
 
   useEffect(() => {
     if (!sessionId) return;
     const fetchSession = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}`);
+        const res = await authFetch(`http://localhost:5000/api/sessions/${sessionId}`);
         const data = await res.json();
         setSession(data);
       } catch (e) {
@@ -57,7 +59,7 @@ const InterviewReport = () => {
     // Poll until phase is "done"
     const poll = setInterval(async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/sessions/${sessionId}`);
+        const res = await authFetch(`http://localhost:5000/api/sessions/${sessionId}`);
         const data = await res.json();
         if (data.phase === 'done' || data.final_report?.summary) {
           setSession(data);

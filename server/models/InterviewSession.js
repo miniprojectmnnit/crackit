@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const interviewSessionSchema = new mongoose.Schema({
-  user_id: { type: String, required: true },
+  userId: { type: String, required: true },
   resume_id: { type: mongoose.Schema.Types.ObjectId, ref: "ResumeProfile", required: false },
   source_url: { type: String, required: false },
 

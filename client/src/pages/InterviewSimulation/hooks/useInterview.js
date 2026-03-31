@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from "react-hot-toast";
-import { generateCodeTemplate } from '../utils/codeTemplate';
+import { generateCodeTemplate } from '../../../lib/codeTemplate';
 import useGeminiVoice from './useGeminiVoice';
 import useSpeechRecognition from './useSpeechRecognition';
 

@@ -1,3 +1,4 @@
+const { getAuth } = require('@clerk/express');
 const InterviewSession = require("../models/InterviewSession");
 const Question = require("../models/Question");
 const Page = require("../models/Page");
@@ -11,6 +12,9 @@ const log = require("../utils/logger");
 exports.getQuestionsForUrl = async (req, res) => {
   try {
     const { url } = req.query;
+    const { userId } = getAuth(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    
     log.info("INTERVIEW", `📋 Fetching questions for URL: ${url}`);
 
     if (!url) return res.status(400).json({ error: "URL is required" });
@@ -32,7 +36,7 @@ exports.getQuestionsForUrl = async (req, res) => {
 exports.createSession = async (req, res) => {
   try {
     const { source_url, resume_id, question_count = 10, context = {} } = req.body;
-    const userId = req.body?.user_id || "mock_user_123";
+    const { userId } = getAuth(req);
     
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -63,7 +67,7 @@ exports.createSession = async (req, res) => {
     }
 
     const session = new InterviewSession({
-      user_id: userId,
+      userId: userId,
       source_url,
       resume_id,
       context,
@@ -89,8 +93,8 @@ exports.evaluateQuestion = async (req, res) => {
     log.info("EVALUATE", `📝 Answer length: ${answer ? answer.length : 0} chars`);
 
     const session = await InterviewSession.findById(id);
-    const authUserId = req.body?.user_id || "mock_user_123";
-    if (!session || session.user_id !== authUserId) {
+    const { userId: authUserId } = getAuth(req);
+    if (!session || session.userId !== authUserId) {
       log.warn("EVALUATE", `Session not found or forbidden: ${id}`);
       return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     }
@@ -190,11 +194,11 @@ exports.executeCodingAnswer = async (req, res) => {
 
     const session = await InterviewSession.findById(id);
     const question = await Question.findById(question_id);
-    const authUserId = req.body?.user_id || "mock_user_123";
+    const { userId: authUserId } = getAuth(req);
 
-    if (!session || !question || session.user_id !== authUserId) {
+    if (!session || !question || session.userId !== authUserId) {
       log.warn("EXECUTE", `Not found or forbidden — session: ${!!session}`);
-      return res.status((session && session.user_id !== authUserId) ? 403 : 404).json({ error: "Not found or access denied" });
+      return res.status((session && session.userId !== authUserId) ? 403 : 404).json({ error: "Not found or access denied" });
     }
 
     const testCases = question.test_cases || [];
@@ -215,8 +219,8 @@ exports.getSession = async (req, res) => {
   try {
     log.info("SESSION", `📋 Fetching session: ${req.params.id}`);
     const session = await InterviewSession.findById(req.params.id).populate({ path: "questions.question_id", model: "Question" });
-    const authUserId = req.query?.user_id || "mock_user_123";
-    if (!session || session.user_id !== authUserId) {
+    const { userId: authUserId } = getAuth(req);
+    if (!session || session.userId !== authUserId) {
       log.warn("SESSION", `Session not found or forbidden: ${req.params.id}`);
       return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     }
@@ -235,8 +239,8 @@ exports.getReport = async (req, res) => {
     log.info("REPORT", `📋 Generating report for session: ${id}`);
     
     const session = await InterviewSession.findById(id);
-    const authUserId = req.query?.user_id || "mock_user_123";
-    if (!session || session.user_id !== authUserId) return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
+    const { userId: authUserId } = getAuth(req);
+    if (!session || session.userId !== authUserId) return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     if (session.phase === "done" && session.final_report) {
       log.info("REPORT", `Report already generated for session: ${id}`);
       return res.json(session);
@@ -271,7 +275,7 @@ exports.getReport = async (req, res) => {
 
 exports.getUserSessions = async (req, res) => {
   try {
-    const userId = req.params.userId || "mock_user_123";
+    const { userId } = getAuth(req);
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -279,7 +283,7 @@ exports.getUserSessions = async (req, res) => {
     log.info("SESSION", `📋 Fetching interview history for auth user: ${userId}`);
     
     // Find all sessions for the user, sort by newest first
-    const sessions = await InterviewSession.find({ user_id: userId })
+    const sessions = await InterviewSession.find({ userId: userId })
       .sort({ createdAt: -1 })
       .populate({ path: "questions.question_id", model: "Question" })
       .populate({ path: "resume_id", model: "ResumeProfile" });

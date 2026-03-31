@@ -9,6 +9,9 @@ import { InterviewSimulation, InterviewHistory } from "./pages";
 import ResumeUpload from "./pages/ResumeUpload/ResumeUpload";
 import InterviewReport from "./pages/Report/InterviewReport";
 import InterviewRoom from "./pages/InterviewRoom/InterviewRoom";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import SignInPage from "./auth/SignInPage";
+import SignUpPage from "./auth/SignUpPage";
 
 const App = () => {
   return (
@@ -23,14 +26,16 @@ const App = () => {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
+            <Route path="/sign-in/*" element={<SignInPage />} />
+            <Route path="/sign-up/*" element={<SignUpPage />} />
 
             {/* Protected Routes */}
-            <Route path="/interviewsimulation" element={<InterviewSimulation />} />
-            <Route path="/interview-room/:sessionId" element={<InterviewRoom />} />
-            <Route path="/resume-upload" element={<ResumeUpload />} />
-            <Route path="/feed" element={<InterviewHistory />} />
-            <Route path="/report/:sessionId" element={<InterviewReport />} />
-            <Route path="/interview-report/:sessionId" element={<InterviewReport />} />
+            <Route path="/interviewsimulation" element={<ProtectedRoute><InterviewSimulation /></ProtectedRoute>} />
+            <Route path="/interview-room/:sessionId" element={<ProtectedRoute><InterviewRoom /></ProtectedRoute>} />
+            <Route path="/resume-upload" element={<ProtectedRoute><ResumeUpload /></ProtectedRoute>} />
+            <Route path="/feed" element={<ProtectedRoute><InterviewHistory /></ProtectedRoute>} />
+            <Route path="/report/:sessionId" element={<ProtectedRoute><InterviewReport /></ProtectedRoute>} />
+            <Route path="/interview-report/:sessionId" element={<ProtectedRoute><InterviewReport /></ProtectedRoute>} />
 
             {/* 404 Page */}
             <Route path="*" element={<NotFound />} />

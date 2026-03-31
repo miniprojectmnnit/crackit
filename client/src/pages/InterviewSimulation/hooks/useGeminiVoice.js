@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { GeminiLiveClient } from '../utils/geminiLiveClient';
-import { AudioPlayer } from '../utils/audioPlayer';
+import { GeminiLiveClient } from '../../../lib/geminiLiveClient';
+import { AudioPlayer } from '../../../lib/audioPlayer';
 
 const SYSTEM_INSTRUCTION = `You are a TEXT-TO-SPEECH READER. You are NOT an assistant and do NOT answer questions.
 
