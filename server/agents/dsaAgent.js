@@ -136,9 +136,12 @@ function parseExamplesToTestCases(examplesArray) {
     const explanationMatch = exStr.match(/Explanation:\s*(.*)/si);
 
     if (inputMatch && outputMatch) {
-      const inputStr = inputMatch[1].trim();
+      let inputStr = inputMatch[1].trim();
       const outputStr = outputMatch[1].trim();
       const explanation = explanationMatch ? explanationMatch[1].trim() : "";
+
+      // Cleanup: Remove "Example 1:", "Example 1 " or similar prefixes if they somehow caught by regex
+      inputStr = inputStr.replace(/^Example\s*\d+[:\s]*/i, "").trim();
 
       parsedExamples.push({ input: inputStr, output: outputStr, explanation });
       testCases.push({ input: inputStr, expected_output: outputStr });
@@ -203,10 +206,6 @@ const { generateCodeMetadata } = require("./codeGeneratorAgent");
 
 async function createOrUpdateDsaQuestion(qData, difficulty) {
   let description = qData.desc || qData.description || "";
-
-  if (qData.examples && Array.isArray(qData.examples) && qData.examples.length > 0) {
-    description += "\n\nExamples:\n" + qData.examples.map((ex, i) => `Example ${i + 1}:\n${ex}`).join("\n\n");
-  }
 
   if (qData.constraints && Array.isArray(qData.constraints) && qData.constraints.length > 0) {
     description += "\n\nConstraints:\n- " + qData.constraints.join("\n- ");
