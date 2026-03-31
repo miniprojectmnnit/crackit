@@ -5,6 +5,7 @@ import {
   FileText, Upload, CheckCircle, ArrowRight, Award, Loader2, Target
 } from 'lucide-react';
 import { useAuthFetch } from '../../auth/useAuthFetch';
+import companyList from '../../data/companies.json';
 
 // ── Round definitions ──────────────────────────────────────────────────────────
 const ROUNDS = [
@@ -213,15 +214,26 @@ const ResumeUpload = () => {
                 <div>
                   <label className="block text-sm font-medium text-slate-400 mb-2 pl-1">Target Company</label>
                   <div className="relative group">
-                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors" size={18} />
-                    <input
-                      type="text"
+                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors z-10 pointer-events-none" size={18} />
+                    <select
                       name="company"
                       value={context.company}
                       onChange={handleContextChange}
-                      placeholder="e.g., Google, Stripe, Meta"
-                      className="w-full bg-black/40 border border-slate-800 text-white rounded-xl py-3.5 pl-12 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-slate-600 shadow-inner"
-                    />
+                      className={`w-full bg-black/40 border border-slate-800 text-white rounded-xl py-3.5 pl-12 pr-10 appearance-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-inner cursor-pointer ${context.company ? 'text-white' : 'text-slate-500'}`}
+                      style={{ colorScheme: 'dark' }}
+                    >
+                      <option value="" disabled className="text-slate-500">Select Target Company</option>
+                      {companyList.map(comp => (
+                        <option key={comp} value={comp} className="bg-[#1D212F] text-slate-200">
+                          {comp}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                         <path d="m6 9 6 6 6-6"/>
+                      </svg>
+                    </div>
                   </div>
                 </div>
 
@@ -338,58 +350,128 @@ const ResumeUpload = () => {
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
 
             {/* Parsed Resume Summary */}
-            <div className="bg-[#0D1017]/80 backdrop-blur-xl border border-white/5 rounded-3xl p-8 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-800 pb-8">
-                <div className="flex items-center gap-5">
-                  <div className="bg-gradient-to-br from-emerald-400 to-emerald-600 p-4 rounded-2xl shadow-lg shadow-emerald-500/20 text-white">
-                    <CheckCircle size={32} />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-extrabold text-white tracking-tight mb-1">Resume Analyzed</h2>
-                    <p className="text-emerald-400/80 font-medium">Candidate: <span className="text-white">{resumeData.candidate_info?.name || "Ready to proceed"}</span></p>
-                  </div>
-                </div>
-                
-                {/* Context Echo */}
-                <div className="flex flex-col items-start gap-1 text-sm bg-black/30 p-4 rounded-2xl border border-white/5">
-                   <div className="flex items-center gap-2"><span className="text-slate-500 w-16">Target:</span><span className="text-white font-medium bg-black px-2 py-0.5 rounded-md border border-white/5">{context.role || 'Not Specified'}</span></div>
-                   <div className="flex items-center gap-2"><span className="text-slate-500 w-16">Company:</span><span className="text-white font-medium bg-black px-2 py-0.5 rounded-md border border-white/5">{context.company || 'Not Specified'}</span></div>
-                </div>
-              </div>
+            <div className="relative rounded-3xl overflow-hidden">
+              {/* ── Outer animated gradient border ── */}
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-emerald-500/20 via-cyan-500/10 to-indigo-500/20 opacity-60" />
+              <div className="absolute inset-[1px] rounded-3xl bg-[#0A0E16]/98" />
 
-              <div className="grid md:grid-cols-2 gap-10">
-                <div className="bg-black/20 p-6 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-colors">
-                  <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-3">
-                    <div className="p-2 bg-indigo-500/20 rounded-lg"><FileText className="text-indigo-400" size={18} /></div>
-                    Extracted Skills
-                  </h3>
-                  <div className="flex flex-wrap gap-2.5">
-                    {resumeData.technical_skills?.length ? resumeData.technical_skills.map((skill, idx) => (
-                      <span key={idx} className="bg-[#1A1F2E] border border-indigo-500/20 text-indigo-200 px-3.5 py-1.5 rounded-full text-sm font-semibold tracking-wide hover:bg-indigo-500/20 transition-colors">{skill}</span>
-                    )) : <span className="text-slate-500 italic">No specific technical skills extracted.</span>}
+              <div className="relative p-8 md:p-10">
+                {/* ── Header Row ── */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-8 border-b border-white/[0.06]">
+                  <div className="flex items-center gap-5">
+                    {/* Animated success icon with pulse ring */}
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-emerald-400/20 rounded-2xl animate-ping opacity-30" style={{ animationDuration: '2s' }} />
+                      <div className="relative bg-gradient-to-br from-emerald-400 to-emerald-600 p-4 rounded-2xl shadow-lg shadow-emerald-500/30 text-white">
+                        <CheckCircle size={32} />
+                      </div>
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-extrabold tracking-tight mb-1">
+                        <span className="bg-gradient-to-r from-white via-emerald-100 to-white bg-clip-text text-transparent">Resume Analyzed</span>
+                      </h2>
+                      <p className="text-emerald-400/80 font-medium flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse" />
+                        Candidate: <span className="text-white font-semibold">{resumeData.candidate_info?.name || "Ready to proceed"}</span>
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Context info with icons */}
+                  <div className="flex flex-col items-start gap-2.5 text-sm">
+                    <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-sm px-4 py-2.5 rounded-xl border border-white/[0.06] hover:border-white/[0.12] transition-colors duration-300">
+                      <Briefcase size={14} className="text-indigo-400 flex-shrink-0" />
+                      <span className="text-slate-500">Target:</span>
+                      <span className="text-white font-semibold">{context.role || 'Not Specified'}</span>
+                    </div>
+                    <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-sm px-4 py-2.5 rounded-xl border border-white/[0.06] hover:border-white/[0.12] transition-colors duration-300">
+                      <Building2 size={14} className="text-cyan-400 flex-shrink-0" />
+                      <span className="text-slate-500">Company:</span>
+                      <span className="text-white font-semibold">{context.company || 'Not Specified'}</span>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="bg-black/20 p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
-                  <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-3">
-                    <div className="p-2 bg-blue-500/20 rounded-lg"><Award className="text-blue-400" size={18} /></div>
-                    Key Portfolios / Projects
-                  </h3>
-                  <div className="space-y-3 flexflex-col gap-2">
-                    {resumeData.projects?.length ? resumeData.projects.slice(0, 3).map((proj, idx) => (
-                      <div key={idx} className="bg-[#151924] px-5 py-3.5 rounded-xl border border-slate-800 flex items-center gap-4 hover:border-slate-700 transition-colors">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
-                        <span className="text-slate-200 font-medium truncate">{proj.name}</span>
+
+                {/* ── Skills & Projects Grid ── */}
+                <div className="grid md:grid-cols-2 gap-8">
+
+                  {/* ── Extracted Skills Panel ── */}
+                  <div className="group relative rounded-2xl overflow-hidden">
+                    {/* Panel gradient border */}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="absolute inset-[1px] rounded-2xl bg-[#0D1119]" />
+
+                    <div className="relative p-6">
+                      <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-3">
+                        <div className="relative p-2.5 bg-indigo-500/15 rounded-xl border border-indigo-500/20 group-hover:border-indigo-400/40 transition-colors duration-300">
+                          <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ boxShadow: '0 0 16px rgba(99,102,241,0.15)' }} />
+                          <FileText className="text-indigo-400 relative z-10" size={18} />
+                        </div>
+                        <span className="group-hover:text-indigo-200 transition-colors duration-300">Extracted Skills</span>
+                        {resumeData.technical_skills?.length > 0 && (
+                          <span className="ml-auto text-xs font-semibold text-indigo-400/60 bg-indigo-500/10 px-2.5 py-1 rounded-full">
+                            {resumeData.technical_skills.length} found
+                          </span>
+                        )}
+                      </h3>
+                      <div className="flex flex-wrap gap-2.5">
+                        {resumeData.technical_skills?.length ? resumeData.technical_skills.map((skill, idx) => (
+                          <span
+                            key={idx}
+                            className="skill-tag relative bg-[#161B2E] border border-indigo-500/15 text-indigo-200 px-4 py-2 rounded-full text-sm font-semibold tracking-wide
+                              hover:bg-indigo-500/15 hover:border-indigo-400/40 hover:text-white hover:scale-105 hover:shadow-[0_0_16px_rgba(99,102,241,0.15)]
+                              transition-all duration-300 cursor-default"
+                            style={{ animationDelay: `${idx * 50}ms` }}
+                          >
+                            {skill}
+                          </span>
+                        )) : <span className="text-slate-500 italic">No specific technical skills extracted.</span>}
                       </div>
-                    )) : <span className="text-slate-500 italic">No projects extracted.</span>}
+                    </div>
+                  </div>
+                  
+                  {/* ── Key Projects Panel ── */}
+                  <div className="group relative rounded-2xl overflow-hidden">
+                    {/* Panel gradient border */}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="absolute inset-[1px] rounded-2xl bg-[#0D1119]" />
+
+                    <div className="relative p-6">
+                      <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-3">
+                        <div className="relative p-2.5 bg-cyan-500/15 rounded-xl border border-cyan-500/20 group-hover:border-cyan-400/40 transition-colors duration-300">
+                          <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ boxShadow: '0 0 16px rgba(6,182,212,0.15)' }} />
+                          <Award className="text-cyan-400 relative z-10" size={18} />
+                        </div>
+                        <span className="group-hover:text-cyan-200 transition-colors duration-300">Key Portfolios / Projects</span>
+                      </h3>
+                      <div className="space-y-3">
+                        {resumeData.projects?.length ? resumeData.projects.slice(0, 3).map((proj, idx) => (
+                          <div
+                            key={idx}
+                            className="group/proj relative bg-[#111827]/80 px-5 py-4 rounded-xl border border-white/[0.05] flex items-center gap-4
+                              hover:border-cyan-500/30 hover:bg-[#111827] hover:-translate-y-0.5 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]
+                              transition-all duration-300 cursor-default"
+                          >
+                            {/* Animated accent dot */}
+                            <div className="relative flex-shrink-0">
+                              <div className="w-2.5 h-2.5 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full shadow-[0_0_10px_rgba(6,182,212,0.6)]" />
+                              <div className="absolute inset-0 w-2.5 h-2.5 bg-cyan-400 rounded-full animate-ping opacity-20" style={{ animationDuration: '2s' }} />
+                            </div>
+                            <span className="text-slate-200 font-medium truncate group-hover/proj:text-white transition-colors duration-300">{proj.name}</span>
+                            {/* Hover arrow */}
+                            <ArrowRight size={14} className="ml-auto text-slate-600 opacity-0 group-hover/proj:opacity-100 group-hover/proj:translate-x-1 transition-all duration-300 flex-shrink-0" />
+                          </div>
+                        )) : <span className="text-slate-500 italic">No projects extracted.</span>}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Round Grid */}
-            <div className="grid md:grid-cols-2 gap-6 relative">
-              {ROUNDS.map((round) => {
+            <div className="grid md:grid-cols-2 gap-7 relative">
+              {ROUNDS.map((round, index) => {
                 const Icon = round.icon;
                 const isLoading = startingRound === round.id;
                 const isDisabled = !!startingRound;
@@ -398,32 +480,76 @@ const ResumeUpload = () => {
                     key={round.id}
                     onClick={() => handleStartRound(round.id)}
                     disabled={isDisabled}
-                    className={`group relative bg-[#0D1017]/90 backdrop-blur-md border ${round.border} rounded-3xl p-8 text-left transition-all duration-300 transform 
+                    className={`round-card group relative bg-[#0A0E16]/95 backdrop-blur-xl rounded-3xl p-8 text-left transition-all duration-500 transform overflow-hidden
                       ${isDisabled && !isLoading ? 'opacity-40 grayscale cursor-not-allowed' : ''}
-                      ${!isDisabled ? `hover:-translate-y-2 hover:${round.glow} cursor-pointer` : ''}
-                      ${isLoading ? `scale-[1.02] ${round.glow} border-white/20` : ''}
+                      ${!isDisabled ? 'hover:-translate-y-3 hover:scale-[1.015] cursor-pointer' : ''}
+                      ${isLoading ? 'scale-[1.02] border-white/20' : ''}
                     `}
+                    style={{
+                      animationDelay: `${index * 120}ms`,
+                      border: '1px solid rgba(255,255,255,0.06)',
+                    }}
                   >
-                    {/* Ambient Background Gradient on Hover */}
-                    <div className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${round.color} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500`} />
-                    
-                    {/* Top Neon Accent Line */}
-                    <div className={`absolute top-0 inset-x-0 h-1 rounded-t-3xl bg-gradient-to-r ${round.color} opacity-40 group-hover:opacity-100 transition-opacity duration-300`} />
+                    {/* ── Animated neon border glow ── */}
+                    <div
+                      className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`}
+                      style={{
+                        background: `linear-gradient(135deg, ${round.id === 'dsa' ? 'rgba(6,182,212,0.25)' : round.id === 'resume' ? 'rgba(99,102,241,0.25)' : round.id === 'system_design' ? 'rgba(245,158,11,0.25)' : 'rgba(16,185,129,0.25)'}, transparent 60%)`,
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
+                      style={{
+                        background: `radial-gradient(ellipse at bottom right, ${round.id === 'dsa' ? 'rgba(6,182,212,0.12)' : round.id === 'resume' ? 'rgba(99,102,241,0.12)' : round.id === 'system_design' ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)'}, transparent 70%)`,
+                      }}
+                    />
 
-                    <div className="flex flex-col h-full relative z-10 w-full overflow-hidden">
+                    {/* ── Holographic shimmer sweep ── */}
+                    <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+                      <div className="absolute top-0 -left-full w-1/2 h-full bg-gradient-to-r from-transparent via-white/[0.04] to-transparent group-hover:translate-x-[400%] transition-transform duration-1000 ease-in-out" />
+                    </div>
+
+                    {/* ── Top accent line with glow ── */}
+                    <div className={`absolute top-0 inset-x-0 h-[2px] rounded-t-3xl bg-gradient-to-r ${round.color} opacity-30 group-hover:opacity-100 transition-opacity duration-500`} />
+                    <div className={`absolute top-0 inset-x-6 h-[1px] rounded-full bg-gradient-to-r ${round.color} opacity-0 group-hover:opacity-60 blur-sm transition-opacity duration-500`} />
+
+                    {/* ── Floating corner particles ── */}
+                    <div className={`absolute top-4 right-4 w-1 h-1 rounded-full bg-gradient-to-r ${round.color} opacity-0 group-hover:opacity-60 transition-all duration-700 group-hover:translate-y-[-4px] group-hover:translate-x-[2px]`} />
+                    <div className={`absolute bottom-6 left-6 w-1.5 h-1.5 rounded-full bg-gradient-to-r ${round.color} opacity-0 group-hover:opacity-40 transition-all duration-1000 group-hover:translate-y-[-6px]`} />
+                    <div className={`absolute top-1/2 right-8 w-0.5 h-0.5 rounded-full bg-gradient-to-r ${round.color} opacity-0 group-hover:opacity-50 transition-all duration-700 delay-200 group-hover:translate-y-[-8px]`} />
+
+                    {/* ── Card glow shadow ── */}
+                    <div
+                      className="absolute -inset-1 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none blur-xl -z-10"
+                      style={{
+                        background: round.id === 'dsa' ? 'rgba(6,182,212,0.08)' : round.id === 'resume' ? 'rgba(99,102,241,0.08)' : round.id === 'system_design' ? 'rgba(245,158,11,0.08)' : 'rgba(16,185,129,0.08)',
+                      }}
+                    />
+
+                    <div className="flex flex-col h-full relative z-10 w-full">
                       <div className="flex items-center justify-between mb-6">
-                         <div className={`p-4 rounded-2xl bg-black/40 border border-white/5 group-hover:bg-black/60 transition-colors flex-shrink-0 ${round.iconColor}`}>
-                            {isLoading ? <Loader2 size={28} className="animate-spin" /> : <Icon size={28} />}
+                         {/* ── Glowing icon container ── */}
+                         <div className={`relative p-4 rounded-2xl bg-black/50 border border-white/[0.06] group-hover:border-white/[0.12] transition-all duration-500 flex-shrink-0 ${round.iconColor}`}>
+                            {/* Icon glow halo */}
+                            <div
+                              className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                              style={{
+                                boxShadow: round.id === 'dsa' ? '0 0 24px rgba(6,182,212,0.2)' : round.id === 'resume' ? '0 0 24px rgba(99,102,241,0.2)' : round.id === 'system_design' ? '0 0 24px rgba(245,158,11,0.2)' : '0 0 24px rgba(16,185,129,0.2)',
+                              }}
+                            />
+                            {isLoading ? <Loader2 size={28} className="animate-spin relative z-10" /> : <Icon size={28} className="relative z-10 group-hover:scale-110 transition-transform duration-300" />}
                          </div>
-                         <span className={`text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full ${round.badge} flex-shrink-0 ml-2`}>
+
+                         {/* ── Animated badge ── */}
+                         <span className={`text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full ${round.badge} flex-shrink-0 ml-2 group-hover:scale-105 transition-transform duration-300`}>
                             {round.badgeText}
                          </span>
                       </div>
                       
                       <div className="flex-1">
-                        <h3 className="text-2xl font-bold text-white tracking-tight mb-2 group-hover:translate-x-1 transition-transform">{round.title}</h3>
-                        <p className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">{round.subtitle}</p>
-                        <p className="text-slate-500 leading-relaxed font-medium text-sm md:text-base">{round.description}</p>
+                        <h3 className="text-2xl font-bold text-white tracking-tight mb-2 group-hover:translate-x-1.5 transition-transform duration-300">{round.title}</h3>
+                        <p className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide group-hover:text-slate-300 transition-colors duration-300">{round.subtitle}</p>
+                        <p className="text-slate-500 leading-relaxed font-medium text-sm md:text-base group-hover:text-slate-400 transition-colors duration-500">{round.description}</p>
                       </div>
 
                       {isLoading ? (
@@ -437,12 +563,20 @@ const ResumeUpload = () => {
                            </div>
                         </div>
                       ) : (
-                         <div className={`mt-8 flex items-center justify-between font-bold text-sm tracking-wide opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 ${round.iconColor}`}>
-                            <span>Select Round</span>
-                            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                         <div className={`mt-8 flex items-center justify-between font-bold text-sm tracking-wide transition-all duration-500 ${round.iconColor}`}
+                           style={{ opacity: 0, transform: 'translateY(8px)' }}
+                         >
+                            <span className="group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 opacity-0 translate-y-2 flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full bg-gradient-to-r ${round.color} shadow-lg animate-pulse`} />
+                              Start This Round
+                            </span>
+                            <ArrowRight size={18} className="group-hover:translate-x-2 group-hover:opacity-100 opacity-0 transition-all duration-500 delay-100" />
                          </div>
                       )}
                     </div>
+
+                    {/* ── Bottom border accent ── */}
+                    <div className={`absolute bottom-0 inset-x-0 h-[1px] bg-gradient-to-r ${round.color} opacity-0 group-hover:opacity-40 transition-opacity duration-500`} />
                   </button>
                 );
               })}

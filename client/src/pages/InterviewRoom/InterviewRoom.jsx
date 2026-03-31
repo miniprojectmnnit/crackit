@@ -10,25 +10,77 @@ import CodeEditor from '../InterviewSimulation/components/CodeEditor';
 import QuestionPanel from '../InterviewSimulation/components/QuestionPanel';
 import { generateCodeTemplate } from '../../lib/codeTemplate';
 
+// ─── Theme Definitions ──────────────────────────────────────────────────────
+const THEMES = {
+  dsa: {
+    borderRing: 'border-cyan-400/20',
+    borderBase: 'border-cyan-400',
+    glow: 'shadow-[0_0_40px_rgba(34,211,238,0.4)]',
+    bgActive: 'bg-gradient-to-br from-cyan-900/80 to-slate-900',
+    bgPulse: 'bg-cyan-400',
+    text: 'text-cyan-400',
+    textMuted: 'text-cyan-500/80',
+    bgLight: 'bg-cyan-500/10',
+    borderLight: 'border-cyan-500/40',
+    ambientGlow: 'from-cyan-900/10'
+  },
+  system_design: {
+    borderRing: 'border-amber-400/20',
+    borderBase: 'border-amber-400',
+    glow: 'shadow-[0_0_40px_rgba(251,191,36,0.4)]',
+    bgActive: 'bg-gradient-to-br from-amber-900/80 to-slate-900',
+    bgPulse: 'bg-amber-400',
+    text: 'text-amber-400',
+    textMuted: 'text-amber-500/80',
+    bgLight: 'bg-amber-500/10',
+    borderLight: 'border-amber-500/40',
+    ambientGlow: 'from-amber-900/10'
+  },
+  hr: {
+    borderRing: 'border-emerald-400/20',
+    borderBase: 'border-emerald-400',
+    glow: 'shadow-[0_0_40px_rgba(52,211,153,0.4)]',
+    bgActive: 'bg-gradient-to-br from-emerald-900/80 to-slate-900',
+    bgPulse: 'bg-emerald-400',
+    text: 'text-emerald-400',
+    textMuted: 'text-emerald-500/80',
+    bgLight: 'bg-emerald-500/10',
+    borderLight: 'border-emerald-500/40',
+    ambientGlow: 'from-emerald-900/10'
+  },
+  resume: {
+    borderRing: 'border-indigo-400/20',
+    borderBase: 'border-indigo-400',
+    glow: 'shadow-[0_0_40px_rgba(99,102,241,0.4)]',
+    bgActive: 'bg-gradient-to-br from-indigo-900/80 to-slate-900',
+    bgPulse: 'bg-indigo-400',
+    text: 'text-indigo-400',
+    textMuted: 'text-indigo-500/80',
+    bgLight: 'bg-indigo-500/10',
+    borderLight: 'border-indigo-500/40',
+    ambientGlow: 'from-indigo-900/10'
+  }
+};
+
 // ─── Animated AI Avatar ─────────────────────────────────────────────────────
 
-const AIAvatar = ({ isSpeaking, connectionState }) => (
+const AIAvatar = ({ isSpeaking, connectionState, theme }) => (
   <div className="relative flex items-center justify-center">
     {isSpeaking && (
       <>
-        <div className="absolute w-40 h-40 rounded-full border border-cyan-400/20 animate-ping" style={{ animationDuration: '1.5s' }} />
-        <div className="absolute w-32 h-32 rounded-full border border-cyan-400/30 animate-ping" style={{ animationDuration: '1.2s', animationDelay: '0.3s' }} />
+        <div className={`absolute w-40 h-40 rounded-full border ${theme.borderRing} animate-ping`} style={{ animationDuration: '1.5s' }} />
+        <div className={`absolute w-32 h-32 rounded-full border ${theme.borderRing} animate-ping`} style={{ animationDuration: '1.2s', animationDelay: '0.3s' }} />
       </>
     )}
     <div className={`relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${isSpeaking
-      ? 'border-4 border-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.4)] bg-gradient-to-br from-cyan-900/80 to-slate-900'
-      : 'border-2 border-cyan-800/50 bg-gradient-to-br from-slate-800 to-slate-900'
+      ? `border-4 ${theme.borderBase} ${theme.glow} ${theme.bgActive}`
+      : 'border-2 border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900'
       }`}>
       <span className="text-5xl select-none">🤖</span>
       {isSpeaking && (
         <div className="absolute bottom-1 right-1 flex gap-[2px] items-end h-4">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="w-[3px] bg-cyan-400 rounded-full animate-pulse"
+            <div key={i} className={`w-[3px] ${theme.bgPulse} rounded-full animate-pulse`}
               style={{ height: `${6 + Math.sin(i) * 6}px`, animationDelay: `${i * 0.1}s`, animationDuration: '0.6s' }} />
           ))}
         </div>
@@ -58,7 +110,7 @@ const ProgressBar = ({ current, total }) => {
 
 // ─── Transcript Bubble ───────────────────────────────────────────────────────
 
-const Bubble = ({ role, text, corrected }) => {
+const Bubble = ({ role, text, corrected, theme }) => {
   const isAi = role === 'interviewer';
   return (
     <div className={`flex ${isAi ? 'justify-start' : 'justify-end'} mb-2`}>
@@ -67,7 +119,7 @@ const Bubble = ({ role, text, corrected }) => {
         : 'bg-emerald-900/40 border border-emerald-800/50 text-emerald-100 rounded-tr-sm'
         }`}>
         <div className="flex items-center gap-2 mb-1.5">
-           <span className={`text-[10px] font-bold uppercase tracking-wider ${isAi ? 'text-cyan-500/80' : 'text-emerald-500/80'}`}>
+           <span className={`text-[10px] font-bold uppercase tracking-wider ${isAi ? theme.textMuted : 'text-emerald-500/80'}`}>
              {isAi ? 'AI Interviewer' : 'You'}
            </span>
         </div>
@@ -96,6 +148,23 @@ const InterviewRoom = () => {
   const [pendingAnswer, setPendingAnswer] = useState('');
   const [isChatMinimized, setIsChatMinimized] = useState(true);
   const [popoutMessage, setPopoutMessage] = useState(null);
+  const [roundType, setRoundType] = useState('dsa'); // default fallback
+
+  // Fetch session meta (to get theme/round_type)
+  useEffect(() => {
+    if (sessionId) {
+      authFetch(`http://localhost:5000/api/sessions/${sessionId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.round_type) {
+            setRoundType(data.round_type);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [sessionId, authFetch]);
+
+  const activeTheme = THEMES[roundType] || THEMES.dsa;
 
   useEffect(() => {
     if (transcript.length > 0 && isChatMinimized) {
@@ -274,7 +343,7 @@ const InterviewRoom = () => {
   const isCodingArea = currentQuestion?.type === 'Coding';
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-slate-300 flex flex-col font-sans overflow-hidden">
+    <div className="h-screen bg-[#0a0a0a] text-slate-300 flex flex-col font-sans overflow-hidden">
       {/* Header */}
       <header className="border-b border-white/5 bg-[#121212]/80 backdrop-blur-md px-6 py-3 flex items-center justify-between z-10 flex-shrink-0 shadow-lg">
         <div className="flex items-center gap-3 w-1/3">
@@ -299,16 +368,16 @@ const InterviewRoom = () => {
       {/* Main content */}
       {isCodingArea ? (
         // ─── CODING ROUND (LEETCODE UI) ────────────────────────────────────────────────────────────
-        <div className="flex flex-1 overflow-hidden p-2 gap-2 bg-[#000000]">
+        <div className="flex-1 flex overflow-hidden p-2 gap-2 bg-[#000000] min-h-0">
           
-          {/* Left: Question Panel */}
+          {/* Left: Question Panel (scrollable) */}
           <div className="w-1/2 flex flex-col bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden shadow-2xl">
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                <QuestionPanel question={currentQuestion} />
             </div>
           </div>
 
-          {/* Right: Code Editor */}
+          {/* Right: Code Editor (Run/Submit now in header) */}
           <div className="w-1/2 flex flex-col bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden shadow-2xl">
              <CodeEditor
                code={code}
@@ -357,7 +426,7 @@ const InterviewRoom = () => {
                 >
                    <span className="text-4xl relative z-10 pointer-events-none drop-shadow-lg">🤖</span>
                    {isSpeaking && (
-                      <div className="absolute inset-0 rounded-full border-4 border-cyan-400 animate-ping opacity-50 pointer-events-none" />
+                      <div className={`absolute inset-0 rounded-full border-4 ${activeTheme.borderRing} animate-ping opacity-50 pointer-events-none`} />
                    )}
                    {isListening && (
                       <div className="absolute inset-0 rounded-full border-4 border-emerald-400 animate-pulse opacity-50 pointer-events-none" />
@@ -372,7 +441,7 @@ const InterviewRoom = () => {
                          transition={{ type: 'spring', damping: 20 }}
                          className="absolute bottom-[110%] md:-left-[280px] md:top-2 md:bottom-auto w-64 p-3 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 rounded-2xl text-xs text-slate-200 shadow-2xl pointer-events-none z-[60]"
                        >
-                         <div className={`font-bold mb-1.5 uppercase tracking-wider text-[10px] ${popoutMessage.role === 'interviewer' ? 'text-cyan-400' : 'text-emerald-400'} opacity-90`}>
+                         <div className={`font-bold mb-1.5 uppercase tracking-wider text-[10px] ${popoutMessage.role === 'interviewer' ? activeTheme.text : 'text-emerald-400'} opacity-90`}>
                             {popoutMessage.role === 'interviewer' ? 'AI Interviewer' : 'You'}
                          </div>
                          <div className="line-clamp-4 leading-relaxed whitespace-pre-wrap">{popoutMessage.text}</div>
@@ -398,12 +467,12 @@ const InterviewRoom = () => {
                     >
                        <div className="flex items-center gap-3 pl-1 pointer-events-none">
                            <div className="relative">
-                               <div className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-cyan-400 animate-ping' : isListening ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-                               <div className={`absolute inset-0 w-2 h-2 rounded-full ${isSpeaking ? 'bg-cyan-500' : isListening ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                               <div className={`w-2 h-2 rounded-full ${isSpeaking ? `${activeTheme.bgPulse} animate-ping` : isListening ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+                               <div className={`absolute inset-0 w-2 h-2 rounded-full ${isSpeaking ? activeTheme.bgPulse : isListening ? 'bg-emerald-500' : 'bg-slate-600'}`} />
                            </div>
                            <div className="text-sm font-semibold tracking-wide text-slate-200 flex items-center gap-2">
                                Interview Assistant
-                               {isSpeaking && <span className="text-[10px] text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded-full border border-cyan-400/20">Speaking...</span>}
+                               {isSpeaking && <span className={`text-[10px] ${activeTheme.text} ${activeTheme.bgLight} px-1.5 py-0.5 rounded-full border ${activeTheme.borderRing}`}>Speaking...</span>}
                                {isListening && <span className="text-[10px] text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded-full border border-emerald-400/20">Listening...</span>}
                            </div>
                        </div>
@@ -430,7 +499,7 @@ const InterviewRoom = () => {
                              </div>
                           )}
                           {transcript.map((msg, i) => (
-                            <Bubble key={i} role={msg.role} text={msg.text} corrected={msg.corrected} />
+                            <Bubble key={i} role={msg.role} text={msg.text} corrected={msg.corrected} theme={activeTheme} />
                           ))}
 
                           {/* Live interim transcript */}
@@ -478,12 +547,12 @@ const InterviewRoom = () => {
         </div>
       ) : (
         // ─── STANDARD ROUND (GENERIC UI) ────────────────────────────────────────────────────────
-        <div className="flex flex-1 overflow-hidden bg-gradient-to-br from-[#0a0a0a] to-[#14151a]">
+        <div className="flex-1 flex overflow-hidden min-h-0 bg-gradient-to-br from-[#0a0a0a] to-[#14151a]">
           
           {/* Left: AI Context Panel */}
           <div className="w-[320px] border-r border-white/5 flex flex-col items-center justify-center gap-10 p-8 flex-shrink-0 bg-black/20 backdrop-blur-md shadow-[4px_0_24px_-10px_rgba(0,0,0,0.5)] z-10 relative">
-            <div className="absolute inset-0 bg-gradient-to-b from-cyan-900/5 to-transparent pointer-events-none" />
-            <AIAvatar isSpeaking={isSpeaking} connectionState={connectionState} />
+            <div className={`absolute inset-0 bg-gradient-to-b ${activeTheme.ambientGlow} to-transparent pointer-events-none`} />
+            <AIAvatar isSpeaking={isSpeaking} connectionState={connectionState} theme={activeTheme} />
             <div className="text-center z-10">
               <div className="text-base font-semibold text-slate-200 tracking-wide">AI Interviewer</div>
               <div className="text-sm text-slate-500 mt-1.5 font-medium">
@@ -492,13 +561,13 @@ const InterviewRoom = () => {
             </div>
             
             {/* Status Pill */}
-            <div className={`px-5 py-2.5 rounded-full text-xs font-semibold tracking-wide border shadow-lg z-10 transition-all duration-300 ${isSpeaking ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300 shadow-cyan-900/20' :
+            <div className={`px-5 py-2.5 rounded-full text-xs font-semibold tracking-wide border shadow-lg z-10 transition-all duration-300 ${isSpeaking ? `${activeTheme.borderLight} ${activeTheme.bgLight} ${activeTheme.text} shadow-lg` :
               isListening ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 shadow-emerald-900/20' :
                 'border-white/10 bg-white/5 text-slate-400'
               }`}>
               <div className="flex items-center gap-2">
                  {isSpeaking ? (
-                    <><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span></span> AI Speaking</>
+                    <><span className="relative flex h-2 w-2"><span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${activeTheme.bgPulse} opacity-75`}></span><span className={`relative inline-flex rounded-full h-2 w-2 ${activeTheme.bgPulse}`}></span></span> AI Speaking</>
                  ) : isListening ? (
                     <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg> Mic Active</>
                  ) : (
@@ -511,7 +580,7 @@ const InterviewRoom = () => {
           {/* Center: Chat Window */}
           <div className="flex-1 flex flex-col overflow-hidden relative">
             {/* Ambient Background Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-tr from-cyan-900/10 to-emerald-900/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-tr ${activeTheme.ambientGlow} to-emerald-900/10 rounded-full blur-[120px] pointer-events-none`} />
             
             <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-6 z-10 custom-scrollbar" style={{ scrollBehavior: 'smooth' }}>
               {transcript.length === 0 && (
@@ -523,7 +592,7 @@ const InterviewRoom = () => {
                 </div>
               )}
               {transcript.map((msg, i) => (
-                <Bubble key={i} role={msg.role} text={msg.text} corrected={msg.corrected} />
+                <Bubble key={i} role={msg.role} text={msg.text} corrected={msg.corrected} theme={activeTheme} />
               ))}
 
               {/* Live interim transcript */}
