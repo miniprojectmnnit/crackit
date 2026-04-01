@@ -332,6 +332,8 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, i
       .slice(0, -1) // Exclude the current answer we just pushed
       .map(t => ({ role: t.role === "candidate" ? "user" : "assistant", content: t.text }));
 
+    const transcriptContext = currentQuestionHistory.map(t => `${t.role.toUpperCase()}: ${t.content}`).join("\n");
+
     const isDsaRound = state.round_type === "dsa";
 
     // Get current sub-phase for DSA
