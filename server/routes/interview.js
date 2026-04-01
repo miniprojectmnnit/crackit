@@ -8,12 +8,14 @@ const {
   executeCodingAnswer,
   getSession,
   getReport,
-  getUserSessions
+  getUserSessions,
+  getSmartDSAQuestions
 } = require("../controllers/interviewController");
 const { getLiveToken } = require("../controllers/liveTokenController");
 
 // Basic questions retrieval
 router.get("/questions", getQuestionsForUrl);
+router.get("/smart-dsa", requireAuth(), getSmartDSAQuestions);
 
 // Gemini Live API token
 router.get("/live-token", getLiveToken);
