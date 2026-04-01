@@ -44,7 +44,7 @@ const QuestionPanel = ({ question }) => {
         )}
 
         {/* Test Cases */}
-        {question.examples && (
+        {Array.isArray(question.examples) && question.examples.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
               <FlaskConical size={12} className="text-emerald-400" />
@@ -72,7 +72,6 @@ const QuestionPanel = ({ question }) => {
           </div>
         )}
 
-        {/* Constraints */}
         {question.constraints && (
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
@@ -80,12 +79,20 @@ const QuestionPanel = ({ question }) => {
               Constraints
             </div>
             <ul className="space-y-1 pl-1">
-              {question.constraints.map((c, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-slate-400 break-words">
-                  <span className="w-1 h-1 rounded-full bg-amber-400/60 mt-1.5 flex-shrink-0" />
-                  <span className="flex-1 min-w-0">{c}</span>
-                </li>
-              ))}
+              {Array.isArray(question.constraints) 
+                ? question.constraints.map((c, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-slate-400 break-words">
+                      <span className="w-1 h-1 rounded-full bg-amber-400/60 mt-1.5 flex-shrink-0" />
+                      <span className="flex-1 min-w-0">{c}</span>
+                    </li>
+                  ))
+                : (
+                    <li className="flex items-start gap-2 text-xs text-slate-400 break-words">
+                      <span className="w-1 h-1 rounded-full bg-amber-400/60 mt-1.5 flex-shrink-0" />
+                      <span className="flex-1 min-w-0">{String(question.constraints)}</span>
+                    </li>
+                  )
+              }
             </ul>
           </div>
         )}
