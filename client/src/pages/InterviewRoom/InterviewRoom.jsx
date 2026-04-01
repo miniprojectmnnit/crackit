@@ -111,7 +111,8 @@ const ProgressBar = ({ current, total }) => {
 // ─── Transcript Bubble ───────────────────────────────────────────────────────
 
 const Bubble = ({ role, text, corrected, theme }) => {
-  const isAi = role === 'interviewer';
+  const isAi = role === 'interviewer' || role === 'assistant';
+  const messageRole = role === 'candidate' ? 'candidate' : role;
   return (
     <div className={`flex ${isAi ? 'justify-start' : 'justify-end'} mb-2`}>
       <div className={`max-w-[85%] sm:max-w-[80%] px-5 py-3.5 rounded-3xl text-[14px] leading-relaxed shadow-sm backdrop-blur-sm transition-all ${isAi
@@ -240,11 +241,28 @@ const InterviewRoom = () => {
     setTimeout(() => navigate(`/report/${sid}`), 3000);
   }, [navigate, stop]);
 
+  const handleAnswerCorrected = useCallback((original, corrected) => {
+    console.log('[INTERVIEW] Answer corrected:', { original, corrected });
+    setTranscript(prev => {
+      const newTranscript = [...prev];
+      // Find the last message from the candidate and update its text
+      for (let i = newTranscript.length - 1; i >= 0; i--) {
+        if (newTranscript[i].role === 'candidate') {
+          newTranscript[i].text = corrected;
+          newTranscript[i].corrected = true;
+          break;
+        }
+      }
+      return newTranscript;
+    });
+  }, []);
+
   // WebSocket connection
   const { connectionState, progress, sendAnswer, signalSpeechDone } = useInterviewSocket(
     sessionId,
     handleAiMessage,
-    handleInterviewComplete
+    handleInterviewComplete,
+    handleAnswerCorrected
   );
 
   // Keep functions accessible via ref
