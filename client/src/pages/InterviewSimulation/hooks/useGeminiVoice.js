@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuthFetch } from '../../../auth/useAuthFetch';
 import { GeminiLiveClient } from '../../../lib/geminiLiveClient';
 import { AudioPlayer } from '../../../lib/audioPlayer';
 
@@ -29,6 +30,7 @@ const useGeminiVoice = (onSpeechDone) => {
   const pendingTextRef = useRef(null);   // text waiting for Gemini to be ready
   const readyRef = useRef(false);        // true once Gemini setupComplete fires
   const fallbackTimerRef = useRef(null); // browser TTS timeout handle
+  const authFetch = useAuthFetch();
 
   useEffect(() => {
     onSpeechDoneRef.current = onSpeechDone;
@@ -76,7 +78,7 @@ const useGeminiVoice = (onSpeechDone) => {
     const init = async () => {
       try {
         console.log('[VOICE] Fetching ephemeral token...');
-        const res = await fetch('http://localhost:5000/api/interviews/live-token');
+        const res = await authFetch('http://localhost:5000/api/interviews/live-token');
         if (!res.ok) throw new Error(`Token fetch: ${res.status}`);
         const { token } = await res.json();
         if (cancelled) return;
@@ -137,7 +139,7 @@ const useGeminiVoice = (onSpeechDone) => {
       clientRef.current?.disconnect();
       playerRef.current?.destroy();
     };
-  }, [geminiSpeak]);
+  }, [geminiSpeak, authFetch]);
 
   /**
    * Speak the given text.
