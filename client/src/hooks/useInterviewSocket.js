@@ -14,62 +14,66 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
   const { getToken } = useAuth();
   const wsRef = useRef(null);
 
-  const connect = useCallback(() => {
+  useEffect(() => {
     if (!sessionId) return;
+    let cancelled = false;
+    
     setConnectionState('connecting');
 
     const startConnection = async () => {
       const token = await getToken();
+      if (cancelled) return;
+
       const wsUrl = `ws://localhost:5000/ws/interview/${sessionId}?token=${token}`;
       console.log('[WS] Connecting to:', wsUrl.split('?')[0]);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
-    ws.onopen = () => {
-      console.log('[WS] Connected');
-      setConnectionState('connected');
-    };
+      ws.onopen = () => {
+        console.log('[WS] Connected');
+        setConnectionState('connected');
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[WS] Received:', data.type);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('[WS] Received:', data.type);
 
-        switch (data.type) {
-          case 'session_ready':
-            console.log('[WS] Session ready');
-            break;
+          switch (data.type) {
+            case 'session_ready':
+              console.log('[WS] Session ready');
+              break;
 
-          case 'ai_message':
-            if (data.progress) setProgress(data.progress);
-            if (onAiMessage) onAiMessage(data.text, data.phase, data.question);
-            break;
+            case 'ai_message':
+              if (data.progress) setProgress(data.progress);
+              if (onAiMessage) onAiMessage(data.text, data.phase, data.question);
+              break;
 
-          case 'interview_complete':
-            if (onInterviewComplete) onInterviewComplete(data.session_id, data.final_report);
-            break;
+            case 'interview_complete':
+              if (onInterviewComplete) onInterviewComplete(data.session_id, data.final_report);
+              break;
 
-          case 'answer_corrected':
-            if (onAnswerCorrected) onAnswerCorrected(data.original, data.corrected);
-            break;
+            case 'answer_corrected':
+              if (onAnswerCorrected) onAnswerCorrected(data.original, data.corrected);
+              break;
 
-          case 'error':
-            console.error('[WS] Server error:', data.message);
-            break;
+            case 'error':
+              console.error('[WS] Server error:', data.message);
+              break;
 
-          default:
-            break;
+            default:
+              break;
+          }
+        } catch (e) {
+          console.error('[WS] Parse error:', e);
         }
-      } catch (e) {
-        console.error('[WS] Parse error:', e);
-      }
-    };
+      };
 
-    ws.onerror = (err) => {
-      console.error('[WS] Error:', err);
-      setConnectionState('error');
-    };
+      ws.onerror = (err) => {
+        console.error('[WS] Error:', err);
+        setConnectionState('error');
+      };
 
       ws.onclose = () => {
         console.log('[WS] Closed');
@@ -78,12 +82,12 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
     };
 
     startConnection();
-  }, [sessionId, getToken, onAiMessage, onInterviewComplete, onAnswerCorrected]);
 
-  useEffect(() => {
-    if (sessionId) connect();
-    return () => wsRef.current?.close();
-  }, [sessionId, connect]);
+    return () => {
+      cancelled = true;
+      wsRef.current?.close();
+    };
+  }, [sessionId, getToken, onAiMessage, onInterviewComplete, onAnswerCorrected]);
 
   const sendAnswer = useCallback((answerText, codeContent = null, isFinalSubmission = false) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
