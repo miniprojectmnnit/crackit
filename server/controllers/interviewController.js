@@ -73,6 +73,7 @@ exports.createSession = async (req, res) => {
       source_url,
       resume_id,
       context,
+      round_type: source_url ? "dsa" : "resume", // Default to DSA for extension
       questions,
       transcript: []
     });

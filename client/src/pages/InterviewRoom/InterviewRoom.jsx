@@ -209,9 +209,14 @@ const InterviewRoom = () => {
     }
   }, [speak]);
 
-  // Code Template Autopopulation
+  // Code Template Autopopulation & Local Storage Recovery
   const lastQuestionIdRef = useRef(null);
   const lastLanguageRef = useRef(language);
+
+  // Helper to get local storage key
+  const getStorageKey = (qId, lang) => {
+    return `crackit_code_${sessionId}_${roundType}_${qId}_${lang}`;
+  };
 
   useEffect(() => {
     if (currentQuestion && currentQuestion.type === 'Coding') {
@@ -226,14 +231,30 @@ const InterviewRoom = () => {
             setExecResult(null);
         }
 
-        // Generate the new template for the selected language
-        setCode(generateCodeTemplate(currentQuestion, language));
+        const storageKey = getStorageKey(qId, language);
+        const savedCode = localStorage.getItem(storageKey);
+
+        if (savedCode) {
+            setCode(savedCode);
+        } else {
+            // Generate the new template for the selected language
+            setCode(generateCodeTemplate(currentQuestion, language));
+        }
         
         lastQuestionIdRef.current = qId;
         lastLanguageRef.current = language;
       }
     }
-  }, [currentQuestion, language]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentQuestion, language, sessionId, roundType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save code to local storage when code changes
+  useEffect(() => {
+    if (currentQuestion && currentQuestion.type === 'Coding' && code) {
+      const qId = currentQuestion._id || currentQuestion.question_id;
+      const storageKey = getStorageKey(qId, language);
+      localStorage.setItem(storageKey, code);
+    }
+  }, [code, currentQuestion, language, sessionId, roundType]);
 
   // Called when interview is done
   const handleInterviewComplete = useCallback((sid) => {
@@ -358,7 +379,7 @@ const InterviewRoom = () => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript]);
 
-  const isCodingArea = currentQuestion?.type === 'Coding';
+  const isCodingArea = (roundType === 'dsa' || currentQuestion?.type === 'Coding') && !!currentQuestion;
 
   return (
     <div className="h-screen bg-[#0a0a0a] text-slate-300 flex flex-col font-sans overflow-hidden">

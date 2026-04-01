@@ -74,13 +74,16 @@ async function initSession(ws, sessionId, authUserId) {
       return sendToClient(ws, { type: "error", message: "Access denied." });
     }
 
-    const resumeProfile = await ResumeProfile.findById(session.resume_id);
-    if (!resumeProfile) return sendToClient(ws, { type: "error", message: "Resume not found." });
+    let resumeProfileObj = null;
+    if (session.resume_id) {
+      const resumeProfile = await ResumeProfile.findById(session.resume_id);
+      if (resumeProfile) resumeProfileObj = resumeProfile.toObject();
+    }
 
     // Build initial in-memory state
     const state = {
       session_id: sessionId,
-      resume_profile: resumeProfile.toObject(),
+      resume_profile: resumeProfileObj,
       questions: [],
       current_q_index: 0,
       follow_up_count: 0,
@@ -100,43 +103,53 @@ async function initSession(ws, sessionId, authUserId) {
 
     let questions;
     let roundLabel;
-    try {
-      switch (roundType) {
-        case "dsa":
-          roundLabel = "DSA Round";
-          questions = await generateDsaQuestions(resumeProfile.toObject(), context);
-          break;
 
-        case "system_design":
-          roundLabel = "System Design Round";
-          questions = await generateSystemDesignQuestions(resumeProfile.toObject(), context, 10);
-          break;
+    // --- Extension Question Persistence ---
+    // If questions were already extracted/assigned to this session (e.g. via extension), use them.
+    if (session.questions && session.questions.length > 0) {
+      log.info("WS", `💾 Session ${sessionId} already has ${session.questions.length} questions. Bypassing generation.`);
+      const populated = await InterviewSession.findById(sessionId).populate("questions.question_id");
+      questions = populated.questions.map(q => q.question_id || q.text);
+      roundLabel = roundType === "dsa" ? "DSA Round" : "Technical Round";
+    } else {
+      try {
+        switch (roundType) {
+          case "dsa":
+            roundLabel = "DSA Round";
+            questions = await generateDsaQuestions(resumeProfileObj || {}, context);
+            break;
 
-        case "hr":
-          roundLabel = "HR Round";
-          questions = await generateHrQuestions(resumeProfile.toObject(), context, 10);
-          break;
+          case "system_design":
+            roundLabel = "System Design Round";
+            questions = await generateSystemDesignQuestions(resumeProfileObj || {}, context, 10);
+            break;
 
-        case "resume":
-        default:
-          roundLabel = "Resume-Based Round";
-          questions = await generateInterviewPlan(resumeProfile.toObject(), 10, context);
-          break;
+          case "hr":
+            roundLabel = "HR Round";
+            questions = await generateHrQuestions(resumeProfileObj || {}, context, 10);
+            break;
+
+          case "resume":
+          default:
+            roundLabel = "Resume-Based Round";
+            questions = await generateInterviewPlan(resumeProfileObj || {}, 10, context);
+            break;
+        }
+      } catch (e) {
+        log.error("WS", `Failed to generate questions: ${e.message}`);
+        questions = [
+          "Tell me about yourself and your technical background.",
+          "What are your strongest technical skills and why?",
+          "Describe a challenging project you worked on recently.",
+          "How do you approach debugging a complex problem?",
+          "What's your understanding of RESTful API design principles?",
+          "Can you explain how you would design a scalable system?",
+          "What's your favorite data structure and when would you use it?",
+          "Describe a situation where you had to learn a new technology quickly.",
+          "How do you ensure code quality in your projects?",
+          "Where do you see yourself growing technically in the next year?"
+        ];
       }
-    } catch (e) {
-      log.error("WS", `Failed to generate questions: ${e.message}`);
-      questions = [
-        "Tell me about yourself and your technical background.",
-        "What are your strongest technical skills and why?",
-        "Describe a challenging project you worked on recently.",
-        "How do you approach debugging a complex problem?",
-        "What's your understanding of RESTful API design principles?",
-        "Can you explain how you would design a scalable system?",
-        "What's your favorite data structure and when would you use it?",
-        "Describe a situation where you had to learn a new technology quickly.",
-        "How do you ensure code quality in your projects?",
-        "Where do you see yourself growing technically in the next year?"
-      ];
     }
 
     state.questions = questions;
@@ -147,9 +160,11 @@ async function initSession(ws, sessionId, authUserId) {
     await InterviewSession.findByIdAndUpdate(sessionId, { questions: questionsToSave, phase: "questioning" });
 
     // ── Build combined greeting + first question (single Gemini turn) ──────────
-    const candidateName = resumeProfile.candidate_info?.name || "there";
+    const candidateName = resumeProfileObj?.candidate_info?.name || "there";
     const firstQuestionObj = questions[0];
-    const firstQuestionText = firstQuestionObj && firstQuestionObj.title ? firstQuestionObj.title : firstQuestionObj;
+    const firstQuestionText = firstQuestionObj 
+      ? (firstQuestionObj.title || firstQuestionObj.question_text || (typeof firstQuestionObj === 'string' ? firstQuestionObj : "the first problem"))
+      : "your first question";
 
     const greetingByRound = {
       dsa: `Hello ${candidateName}! Welcome to the DSA round of your CrackIt interview. I'll ask you 3 coding problems — one easy, one medium, and one hard. Think out loud as you work through them. Let's begin! Here's your first problem: ${firstQuestionText}. Please tell me your approach before you code.`,
