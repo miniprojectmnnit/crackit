@@ -7,6 +7,8 @@ const { evaluateAnswer } = require("../agents/evaluateAgent");
 const { generateInterviewPlan } = require("../agents/interviewPlanAgent");
 const { generateFinalReport } = require("../agents/reportAgent");
 const { executeCodePipeline } = require("../services/executionService");
+const UserQuestionStats = require("../models/UserQuestionStats");
+const { getSmartDSAQuestions } = require("../services/dsaSelectionService");
 const log = require("../utils/logger");
 
 exports.getQuestionsForUrl = async (req, res) => {
@@ -177,6 +179,18 @@ exports.evaluateQuestion = async (req, res) => {
 
     log.success("EVALUATE", `💾 Session updated — total score: ${session.total_score.toFixed(1)}, questions answered: ${session.questions.length}`);
 
+    // Update User Question Stats
+    const { timeTaken = 0 } = req.body;
+    await UserQuestionStats.findOneAndUpdate(
+      { userId: authUserId, questionId: question_id },
+      { 
+        $inc: { attempts: 1 },
+        $push: { timeTaken: timeTaken },
+        $set: { solved: evaluation?.correctness >= 80, lastAttemptedAt: new Date() }
+      },
+      { upsert: true }
+    );
+
     res.json({ evaluation, session });
   } catch (err) {
     log.error("EVALUATE", `Evaluation failed: ${err.message}`, err);
@@ -207,6 +221,19 @@ exports.executeCodingAnswer = async (req, res) => {
     const result = await executeCodePipeline(code, language, question, testCases);
 
     log.success("EXECUTE", `✅ Execution complete — passed: ${result.passed}, failed: ${result.failed}${result.error ? ', error: ' + result.error : ''}`);
+
+    // Update User Question Stats
+    const { timeTaken = 0 } = req.body;
+    const isSolved = result.passed > 0 && result.failed === 0;
+    await UserQuestionStats.findOneAndUpdate(
+      { userId: authUserId, questionId: question_id },
+      { 
+        $inc: { attempts: 1 },
+        $push: { timeTaken: timeTaken },
+        $set: { solved: isSolved, lastAttemptedAt: new Date() }
+      },
+      { upsert: true }
+    );
 
     res.json(result);
   } catch (err) {
@@ -292,6 +319,22 @@ exports.getUserSessions = async (req, res) => {
     res.json(sessions);
   } catch (err) {
     log.error("SESSION", `Failed to fetch user sessions: ${err.message}`, err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+exports.getSmartDSAQuestions = async (req, res) => {
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    log.info("DSA", `🎯 Selecting smart questions for user: ${userId}`);
+    const questions = await getSmartDSAQuestions(userId);
+    
+    log.success("DSA", `✅ Selected ${questions.length} questions for ${userId}`);
+    res.json(questions);
+  } catch (err) {
+    log.error("DSA", `Failed to select questions: ${err.message}`, err);
     res.status(500).json({ error: "Server error" });
   }
 };
