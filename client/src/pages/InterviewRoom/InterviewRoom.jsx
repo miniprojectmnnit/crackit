@@ -278,12 +278,19 @@ const InterviewRoom = () => {
     });
   }, []);
 
+  const handleSessionRestored = useCallback((historyStr, restoredPhase, qObj) => {
+    if (historyStr) setTranscript(historyStr);
+    if (restoredPhase) setPhase(restoredPhase);
+    if (qObj) setCurrentQuestion(qObj);
+  }, []);
+
   // WebSocket connection
   const { connectionState, progress, sendAnswer, signalSpeechDone } = useInterviewSocket(
     sessionId,
     handleAiMessage,
     handleInterviewComplete,
-    handleAnswerCorrected
+    handleAnswerCorrected,
+    handleSessionRestored
   );
 
   // Keep functions accessible via ref
