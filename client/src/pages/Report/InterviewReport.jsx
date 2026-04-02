@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthFetch } from '../../auth/useAuthFetch';
 import { Trophy, ThumbsUp, Target, ChevronRight, Loader2, Star } from 'lucide-react';
+import { API_BASE_URL } from '../../config';
 
 const recommendationConfig = {
   "Strong Hire": { color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/30", icon: "🌟" },
@@ -47,7 +48,7 @@ const InterviewReport = () => {
     if (!sessionId) return;
     const fetchSession = async () => {
       try {
-        const res = await authFetch(`http://localhost:5000/api/sessions/${sessionId}`);
+        const res = await authFetch(`${API_BASE_URL}/api/sessions/${sessionId}`);
         const data = await res.json();
         setSession(data);
       } catch (e) {
@@ -59,7 +60,7 @@ const InterviewReport = () => {
     // Poll until phase is "done"
     const poll = setInterval(async () => {
       try {
-        const res = await authFetch(`http://localhost:5000/api/sessions/${sessionId}`);
+        const res = await authFetch(`${API_BASE_URL}/api/sessions/${sessionId}`);
         const data = await res.json();
         if (data.phase === 'done' || data.final_report?.summary) {
           setSession(data);

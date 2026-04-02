@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import { WS_BASE_URL } from '../config';
 
 /**
  * useInterviewSocket — manages the WebSocket connection to the Interview LangGraph conductor.
@@ -24,7 +25,7 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
       const token = await getToken();
       if (cancelled) return;
 
-      const wsUrl = `ws://localhost:5000/ws/interview/${sessionId}?token=${token}`;
+      const wsUrl = `${WS_BASE_URL}/ws/interview/${sessionId}?token=${token}`;
       console.log('[WS] Connecting to:', wsUrl.split('?')[0]);
 
       const ws = new WebSocket(wsUrl);

@@ -9,6 +9,7 @@ import UnifiedInput from '../../components/UnifiedInput';
 import CodeEditor from '../InterviewSimulation/components/CodeEditor';
 import QuestionPanel from '../InterviewSimulation/components/QuestionPanel';
 import { generateCodeTemplate } from '../../lib/codeTemplate';
+import { API_BASE_URL } from '../../config';
 
 // ─── Theme Definitions ──────────────────────────────────────────────────────
 const THEMES = {
@@ -154,7 +155,7 @@ const InterviewRoom = () => {
   // Fetch session meta (to get theme/round_type)
   useEffect(() => {
     if (sessionId) {
-      authFetch(`http://localhost:5000/api/sessions/${sessionId}`)
+      authFetch(`${API_BASE_URL}/api/sessions/${sessionId}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.round_type) {
@@ -361,7 +362,7 @@ const InterviewRoom = () => {
     setIsEvaluatingCode(true);
     setExecResult(null);
     try {
-      const res = await authFetch(`http://localhost:5000/api/interviews/session/${sessionId}/execute`, {
+      const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionId}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

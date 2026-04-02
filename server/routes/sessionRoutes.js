@@ -45,8 +45,7 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({
       session_id: session._id,
-      round_type,
-      ws_url: `ws://localhost:5000/ws/interview/${session._id}`
+      round_type
     });
   } catch (err) {
     log.error("SESSION", `Failed to create session: ${err.message}`);

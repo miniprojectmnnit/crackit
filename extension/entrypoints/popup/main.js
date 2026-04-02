@@ -41,9 +41,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
+  const APP_BASE_URL = import.meta.env.VITE_APP_URL || 'http://localhost:5173';
+  
   mockBtn.addEventListener('click', () => {
     chrome.tabs.create({
-      url: "http://localhost:5173/interviewsimulation?url=" + encodeURIComponent(tab.url)
+      url: `${APP_BASE_URL}/interviewsimulation?url=` + encodeURIComponent(tab.url)
     });
   });
 });

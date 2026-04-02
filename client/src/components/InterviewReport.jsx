@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2, ChevronRight, Target, Brain, Code } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 const InterviewReport = ({ sessionId }) => {
   const [session, setSession] = useState(null);
@@ -8,7 +9,7 @@ const InterviewReport = ({ sessionId }) => {
 
   useEffect(() => {
     if (sessionId) {
-      fetch(`http://localhost:5000/api/interviews/session/${sessionId}`)
+      fetch(`${API_BASE_URL}/api/interviews/session/${sessionId}`)
         .then(res => res.json())
         .then(data => {
           setSession(data);

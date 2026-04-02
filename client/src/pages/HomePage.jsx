@@ -7,17 +7,9 @@ import {
   Users,
   Sparkles,
   BrainCircuit,
-  Target,
-  ArrowRight,
-  Zap,
-  Upload,
-  MessageSquare,
-  BarChart3,
-  CheckCircle2,
-  Trash2,
-  Plus,
-  Key
+  Target, ArrowRight, Zap, Upload, MessageSquare, BarChart3, CheckCircle2, Trash2, Plus, Key
 } from "lucide-react";
+import { API_BASE_URL } from "../config";
 import { motion } from "framer-motion";
 
 /* ─── Particle Background ─── */
@@ -82,7 +74,7 @@ const Home = () => {
 
   const fetchKeys = async () => {
     try {
-      const response = await authFetch('http://localhost:5000/api/settings/keys');
+      const response = await authFetch(`${API_BASE_URL}/api/settings/keys`);
       if (response.ok) {
         const data = await response.json();
         setKeysList(data.keys || []);
@@ -108,7 +100,7 @@ const Home = () => {
     
     setApiKeysStatus('Saving...');
     try {
-      const response = await authFetch('http://localhost:5000/api/settings/keys', {
+      const response = await authFetch(`${API_BASE_URL}/api/settings/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newKeyName.trim(), value: newKeyValue.trim() }),
@@ -130,7 +122,7 @@ const Home = () => {
   const handleDeleteKey = async (name) => {
     try {
       setApiKeysStatus('Deleting...');
-      const response = await authFetch(`http://localhost:5000/api/settings/keys/${encodeURIComponent(name)}`, {
+      const response = await authFetch(`${API_BASE_URL}/api/settings/keys/${encodeURIComponent(name)}`, {
         method: 'DELETE'
       });
       if (response.ok) {
