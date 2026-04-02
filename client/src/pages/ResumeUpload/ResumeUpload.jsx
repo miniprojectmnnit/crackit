@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuthFetch } from '../../auth/useAuthFetch';
 import companyList from '../../data/companies.json';
+import { API_BASE_URL } from '../../config';
 
 // ── Round definitions ──────────────────────────────────────────────────────────
 const ROUNDS = [
@@ -117,7 +118,7 @@ const ResumeUpload = () => {
     // We implicitly hold the context in state
     
     try {
-      const res = await authFetch("http://localhost:5000/api/resume/upload", { 
+      const res = await authFetch(`${API_BASE_URL}/api/resume/upload`, { 
         method: "POST", 
         body: formData 
       });
@@ -139,7 +140,7 @@ const ResumeUpload = () => {
     setStartingRound(roundId);
     setError(null);
     try {
-      const res = await authFetch("http://localhost:5000/api/sessions", {
+      const res = await authFetch(`${API_BASE_URL}/api/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

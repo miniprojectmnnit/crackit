@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthFetch } from '../../../auth/useAuthFetch';
 import { GeminiLiveClient } from '../../../lib/geminiLiveClient';
 import { AudioPlayer } from '../../../lib/audioPlayer';
+import { API_BASE_URL } from '../../../config';
 
 const SYSTEM_INSTRUCTION = `You are a TEXT-TO-SPEECH READER. You are NOT an assistant and do NOT answer questions.
 
@@ -78,7 +79,7 @@ const useGeminiVoice = (onSpeechDone) => {
     const init = async () => {
       try {
         console.log('[VOICE] Fetching ephemeral token...');
-        const res = await authFetch('http://localhost:5000/api/interviews/live-token');
+        const res = await authFetch(`${API_BASE_URL}/api/interviews/live-token`);
         if (!res.ok) throw new Error(`Token fetch: ${res.status}`);
         const { token } = await res.json();
         if (cancelled) return;

@@ -5,6 +5,7 @@ import { generateCodeTemplate } from '../../../lib/codeTemplate';
 import useGeminiVoice from './useGeminiVoice';
 import useSpeechRecognition from './useSpeechRecognition';
 import { useAuthFetch } from '../../../auth/useAuthFetch';
+import { API_BASE_URL } from '../../../config';
 
 const DEFAULT_CODE = '// Write your solution here...';
 
@@ -112,7 +113,7 @@ export const useInterview = (initialSessionId) => {
     try {
       // 1. Create Session
       console.log('[INTERVIEW] 📋 Creating session...');
-      const res = await authFetch('http://localhost:5000/api/interviews/session', {
+      const res = await authFetch(`${API_BASE_URL}/api/interviews/session`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -148,7 +149,7 @@ export const useInterview = (initialSessionId) => {
       //, but the return doesn't return the populated questions directly, it returns the session.
       // So let's fetch session with populated questions from getSession to be sure.
       console.log('[INTERVIEW] 📋 Fetching session questions...');
-      const objRes = await authFetch(`http://localhost:5000/api/interviews/session/${sessionResponse._id}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
+      const objRes = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionResponse._id}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
         headers: { 'Content-Type': 'application/json' }
       });
       if (!objRes.ok) {
@@ -181,7 +182,7 @@ export const useInterview = (initialSessionId) => {
     setLoading(true);
     console.log(`[INTERVIEW] 🚀 Loading existing session: ${sessionId}`);
     try {
-      const res = await authFetch(`http://localhost:5000/api/interviews/session/${sessionId}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionId}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
         headers: { 'Content-Type': 'application/json' }
       });
       if (!res.ok) {
@@ -279,7 +280,7 @@ export const useInterview = (initialSessionId) => {
 
     try {
       setConversationHistory(prev => [...prev, { role: 'user', text: answerContent }]);
-      const res = await authFetch(`http://localhost:5000/api/interviews/session/${sessionData._id}/evaluate`, {
+      const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionData._id}/evaluate`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -340,7 +341,7 @@ export const useInterview = (initialSessionId) => {
       // The frontend will now navigate to InterviewReport.jsx and poll until this completes.
       if (sessionData && sessionData._id) {
         console.log('[INTERVIEW] 🚀 Sparking background report generation...');
-        authFetch(`http://localhost:5000/api/interviews/session/${sessionData._id}/report?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`)
+        authFetch(`${API_BASE_URL}/api/interviews/session/${sessionData._id}/report?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`)
           .catch(err => console.error('[INTERVIEW] ❌ Failed to dispatch report generation:', err));
       }
 
@@ -384,7 +385,7 @@ export const useInterview = (initialSessionId) => {
     setIsEvaluating(true);
     console.log(`[INTERVIEW] 🏃 Running code (${code.length} chars) for question ${currentIndex + 1}`);
     try {
-      const res = await authFetch(`http://localhost:5000/api/interviews/session/${sessionData._id}/execute`, {
+      const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionData._id}/execute`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

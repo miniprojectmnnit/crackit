@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, History, Calendar, Star, ChevronDown, ChevronUp, AlertCircle, MessageSquare, Clock, BarChart2, Video, Code, ArrowRight } from 'lucide-react';
 import { useAuthFetch } from '../../auth/useAuthFetch';
+import { API_BASE_URL } from '../../config';
 
 const InterviewHistory = () => {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ const InterviewHistory = () => {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await authFetch(`http://localhost:5000/api/interviews/history`);
+        const res = await authFetch(`${API_BASE_URL}/api/interviews/history`);
         if (!res.ok) throw new Error("Failed to fetch interview history");
         const data = await res.json();
         setSessions(data);
