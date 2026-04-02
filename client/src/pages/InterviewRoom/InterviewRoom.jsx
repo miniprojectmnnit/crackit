@@ -388,6 +388,10 @@ const InterviewRoom = () => {
 
   const isCodingArea = (roundType === 'dsa' || currentQuestion?.type === 'Coding') && !!currentQuestion;
 
+  const constraintsRef = useRef(null);
+  const isDragging = useRef(false);
+  const [chatAnchor, setChatAnchor] = useState({ vertical: 'bottom', horizontal: 'right' });
+
   return (
     <div className="h-screen bg-[#0a0a0a] text-slate-300 flex flex-col font-sans overflow-hidden">
       {/* Header */}
@@ -414,7 +418,7 @@ const InterviewRoom = () => {
       {/* Main content */}
       {isCodingArea ? (
         // ─── CODING ROUND (LEETCODE UI) ────────────────────────────────────────────────────────────
-        <div className="flex-1 flex overflow-hidden p-2 gap-2 bg-[#000000] min-h-0">
+        <div className="flex-1 flex overflow-hidden p-2 gap-2 bg-[#000000] min-h-0 relative" ref={constraintsRef}>
           
           {/* Left: Question Panel (scrollable) */}
           <div className="w-1/2 flex flex-col bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden shadow-2xl">
@@ -438,75 +442,95 @@ const InterviewRoom = () => {
           </div>
 
           {/* Floating AI Chat Window */}
-          {/* Floating AI Chat Window */}
           <motion.div 
             drag
+            dragConstraints={constraintsRef}
             dragMomentum={false}
-            dragConstraints={{ left: -1000, right: 0, top: -800, bottom: 0 }}
-            initial={false}
-            animate={{
-              width: isChatMinimized ? 80 : 420,
-              height: isChatMinimized ? 80 : 600,
-              borderRadius: isChatMinimized ? '50%' : '16px',
+            onDragStart={() => {
+              isDragging.current = true;
             }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="absolute bottom-6 right-6 z-50 overflow-visible drop-shadow-2xl bg-[#0f111a] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex flex-col cursor-grab active:cursor-grabbing border-white/10"
+            onDragEnd={(e, info) => {
+              setTimeout(() => {
+                isDragging.current = false;
+              }, 100);
+              const rect = info.point;
+              setChatAnchor({
+                vertical: rect.y < window.innerHeight / 2 ? 'top' : 'bottom',
+                horizontal: rect.x < window.innerWidth / 2 ? 'left' : 'right'
+              });
+            }}
+            className="absolute z-50 flex flex-col cursor-grab active:cursor-grabbing"
             style={{ 
                pointerEvents: 'auto',
                touchAction: 'none',
-               borderWidth: isChatMinimized ? '0px' : '1px'
+               bottom: 24,
+               right: 24,
+               width: 80,
+               height: 80
             }}
           >
-             {isChatMinimized ? (
-                // Draggable Circle UI
-                <div 
-                   className="w-full h-full flex items-center justify-center relative touch-none hover:bg-white/5 transition-colors rounded-full"
-                   onDoubleClick={() => {
-                      setIsChatMinimized(false);
-                      setPopoutMessage(null);
-                   }}
-                   onClick={() => {
-                      setIsChatMinimized(false);
-                      setPopoutMessage(null);
-                   }}
-                >
-                   <span className="text-4xl relative z-10 pointer-events-none drop-shadow-lg">🤖</span>
-                   {isSpeaking && (
-                      <div className={`absolute inset-0 rounded-full border-4 ${activeTheme.borderRing} animate-ping opacity-50 pointer-events-none`} />
-                   )}
-                   {isListening && (
-                      <div className="absolute inset-0 rounded-full border-4 border-emerald-400 animate-pulse opacity-50 pointer-events-none" />
-                   )}
-                   {/* Popout bubble */}
-                   <AnimatePresence>
-                     {popoutMessage && (
-                       <motion.div
-                         initial={{ opacity: 0, scale: 0.8, x: 20 }}
-                         animate={{ opacity: 1, scale: 1, x: 0 }}
-                         exit={{ opacity: 0, scale: 0.8, x: 10 }}
-                         transition={{ type: 'spring', damping: 20 }}
-                         className="absolute bottom-[110%] md:-left-[280px] md:top-2 md:bottom-auto w-64 p-3 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 rounded-2xl text-xs text-slate-200 shadow-2xl pointer-events-none z-[60]"
-                       >
-                         <div className={`font-bold mb-1.5 uppercase tracking-wider text-[10px] ${popoutMessage.role === 'interviewer' ? activeTheme.text : 'text-emerald-400'} opacity-90`}>
-                            {popoutMessage.role === 'interviewer' ? 'AI Interviewer' : 'You'}
-                         </div>
-                         <div className="line-clamp-4 leading-relaxed whitespace-pre-wrap">{popoutMessage.text}</div>
-                         
-                         {/* Tip arrow */}
-                         <div className="absolute -bottom-2 right-6 md:-right-2 md:top-6 md:bottom-auto w-4 h-4 bg-slate-800/95 border-r border-b border-slate-700/50 transform rotate-45 md:-rotate-45" />
-                       </motion.div>
+             <AnimatePresence mode="wait">
+               {isChatMinimized ? (
+                  // Draggable Circle UI
+                  <motion.div 
+                     key="circle"
+                     initial={{ scale: 0, opacity: 0 }}
+                     animate={{ scale: 1, opacity: 1 }}
+                     exit={{ scale: 0, opacity: 0 }}
+                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                     className="w-full h-full flex items-center justify-center relative touch-none hover:bg-white/5 transition-colors rounded-full bg-[#0f111a] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] border border-white/10"
+                     onClick={(e) => {
+                        if (isDragging.current) {
+                          e.preventDefault();
+                          return;
+                        }
+                        setIsChatMinimized(false);
+                        setPopoutMessage(null);
+                     }}
+                  >
+                     <span className="text-4xl relative z-10 pointer-events-none drop-shadow-lg">🤖</span>
+                     {isSpeaking && (
+                        <div className={`absolute inset-0 rounded-full border-4 ${activeTheme.borderRing} animate-ping opacity-50 pointer-events-none`} />
                      )}
-                   </AnimatePresence>
-                </div>
-             ) : (
-                // Full Chat Window
-                <div 
-                   className="w-full h-full flex flex-col overflow-hidden w-[420px] h-[600px] cursor-auto" 
-                   onPointerDown={(e) => {
-                       const isInteractive = e.target.closest('button') || e.target.closest('.custom-scrollbar') || e.target.closest('textarea') || e.target.closest('input');
-                       if (isInteractive) e.stopPropagation();
-                   }}
-                >
+                     {isListening && (
+                        <div className="absolute inset-0 rounded-full border-4 border-emerald-400 animate-pulse opacity-50 pointer-events-none" />
+                     )}
+                     {/* Popout bubble */}
+                     <AnimatePresence>
+                       {popoutMessage && (
+                         <motion.div
+                           initial={{ opacity: 0, scale: 0.8, x: 20 }}
+                           animate={{ opacity: 1, scale: 1, x: 0 }}
+                           exit={{ opacity: 0, scale: 0.8, x: 10 }}
+                           transition={{ type: 'spring', damping: 20 }}
+                           className="absolute bottom-[110%] md:-left-[280px] w-64 p-3 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 rounded-2xl text-xs text-slate-200 shadow-2xl pointer-events-none z-[60]"
+                         >
+                           <div className={`font-bold mb-1.5 uppercase tracking-wider text-[10px] ${popoutMessage.role === 'interviewer' ? activeTheme.text : 'text-emerald-400'} opacity-90`}>
+                              {popoutMessage.role === 'interviewer' ? 'AI Interviewer' : 'You'}
+                           </div>
+                           <div className="line-clamp-4 leading-relaxed whitespace-pre-wrap">{popoutMessage.text}</div>
+                           
+                           {/* Tip arrow */}
+                           <div className="absolute -bottom-2 right-6 w-4 h-4 bg-slate-800/95 border-r border-b border-slate-700/50 transform rotate-45" />
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+                  </motion.div>
+               ) : (
+                  // Full Chat Window
+                  <motion.div 
+                     key="chat"
+                     initial={{ opacity: 0, scale: 0.7 }}
+                     animate={{ opacity: 1, scale: 1 }}
+                     exit={{ opacity: 0, scale: 0.7 }}
+                     transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                     style={{ transformOrigin: `${chatAnchor.vertical} ${chatAnchor.horizontal}` }}
+                     className={`absolute ${chatAnchor.vertical}-0 ${chatAnchor.horizontal}-0 z-50 w-[420px] h-[600px] flex flex-col overflow-hidden bg-[#0f111a] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] border border-white/10 rounded-2xl cursor-auto`} 
+                     onPointerDown={(e) => {
+                         const isInteractive = e.target.closest('button') || e.target.closest('.custom-scrollbar') || e.target.closest('textarea') || e.target.closest('input');
+                         if (isInteractive) e.stopPropagation();
+                     }}
+                  >
                     {/* Chat Header (Drag Handle) */}
                     <div 
                        className="flex items-center justify-between p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-white/10 cursor-grab active:cursor-grabbing hover:bg-slate-800 transition-colors group flex-shrink-0"
@@ -585,9 +609,10 @@ const InterviewRoom = () => {
                             isSpeaking={isSpeaking}
                           />
                        </div>
-                    </div>
-                </div>
-             )}
+                     </div>
+                  </motion.div>
+               )}
+             </AnimatePresence>
           </motion.div>
 
         </div>
