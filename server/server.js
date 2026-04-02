@@ -32,7 +32,7 @@ app.use(async (req, res, next) => {
   let apiKeys = [];
   const auth = getAuth(req);
   console.log(`[DEBUG-AUTH] ${req.method} ${req.url} | Auth Header: ${!!req.headers.authorization} | req.auth.userId: ${auth?.userId}`);
-  
+
   try {
     if (auth?.userId) {
       const settings = await UserSettings.findOne({ clerkUserId: auth.userId });
@@ -77,8 +77,8 @@ app.use((req, res, next) => {
 // Error handling
 app.use((err, req, res, next) => {
   console.error("Unhandled Error:", err.message);
-  res.status(res.statusCode === 200 ? 500 : res.statusCode).json({ 
-    error: err.message || "Internal Server Error" 
+  res.status(res.statusCode === 200 ? 500 : res.statusCode).json({
+    error: err.message || "Internal Server Error"
   });
 });
 

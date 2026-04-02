@@ -7,7 +7,8 @@ import {
   Users,
   Sparkles,
   BrainCircuit,
-  Target, ArrowRight, Zap, Upload, MessageSquare, BarChart3, CheckCircle2, Trash2, Plus, Key
+  Target, ArrowRight, Zap, Upload, MessageSquare, BarChart3, CheckCircle2, Trash2, Plus, Key,
+  Download, FolderOpen, Puzzle, Settings, Chrome
 } from "lucide-react";
 import { API_BASE_URL } from "../config";
 import { motion } from "framer-motion";
@@ -136,32 +137,7 @@ const Home = () => {
       setApiKeysStatus('Error deleting key.');
     }
   };
-  const cards = [
-    {
-      id: "resume",
-      title: "Simulate Interview",
-      description:
-        "Upload your resume and practice a personalized, AI-driven technical mock interview curated specifically to your exact profile and skills.",
-      icon: <FileText className="h-8 w-8" />,
-      route: "/resume-upload",
-      delay: 0.1,
-      gradient: "from-[#00d4ff] to-[#0066ff]",
-      glowColor: "rgba(0, 212, 255, 0.4)",
-      iconColor: "text-[#00d4ff]",
-    },
-    {
-      id: "feed",
-      title: "Performance History",
-      description:
-        "Track your progress. Review full conversational transcripts, AI feedback, score breakdowns, and growth analytics across all sessions.",
-      icon: <Users className="h-8 w-8" />,
-      route: "/feed",
-      delay: 0.2,
-      gradient: "from-[#a855f7] to-[#6d28d9]",
-      glowColor: "rgba(168, 85, 247, 0.4)",
-      iconColor: "text-[#a855f7]",
-    },
-  ];
+  // Removed redundant cards as they are already featured in Hero CTAs
 
   const steps = [
     {
@@ -427,114 +403,113 @@ const Home = () => {
       </section>
 
       {/* ═══════════════════════════════════════════════
-          FEATURE CARDS
+          CHROME EXTENSION INSTALLATION
       ═══════════════════════════════════════════════ */}
-      <section className="container mx-auto px-6 max-w-5xl relative z-10 mb-32">
+      <section className="container mx-auto px-6 max-w-5xl relative z-10 mb-32 border-t border-white/5 pt-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           className="text-center mb-16"
         >
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 mb-6">
+            <Chrome className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-bold tracking-widest text-cyan-400 uppercase">Beta Feature</span>
+          </div>
           <h2 className="text-4xl md:text-5xl font-extrabold font-display text-white tracking-tight mb-4">
-            Core <span className="text-[#00d4ff]">Modules</span>
+            Get the <span className="text-[#00d4ff]">Extension</span>
           </h2>
           <p className="text-slate-500 text-lg max-w-xl mx-auto">
-            Two powerful tools designed to transform your interview preparation.
+            Install our Chrome extension to analyze articles and coding problems directly in your browser.
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {cards.map((card) => (
-            <motion.div
-              key={card.id}
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{
-                duration: 0.7,
-                delay: card.delay,
-                ease: "easeOut",
-              }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              className="rounded-3xl relative overflow-hidden group cursor-pointer holographic-shimmer"
-              style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                transition: "box-shadow 0.5s ease, border-color 0.5s ease",
-              }}
-              onMouseEnter={(e) => {
-                setHoveredCard(card.id);
-                e.currentTarget.style.boxShadow = `0 0 60px -15px ${card.glowColor}`;
-                e.currentTarget.style.borderColor = `${card.glowColor}`;
-              }}
-              onMouseLeave={(e) => {
-                setHoveredCard(null);
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-              }}
-              onClick={() => navigate(card.route)}
-            >
-              {/* Top accent line */}
-              <div
-                className={`absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r ${card.gradient} opacity-40 group-hover:opacity-100 transition-opacity duration-500`}
-              />
-
-              <div className="bg-[#0A0D14]/80 h-full w-full p-10 md:p-12 relative overflow-hidden flex flex-col backdrop-blur-sm">
-                {/* Icon */}
-                <div
-                  className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-8 ${card.iconColor} group-hover:scale-110 transition-all duration-500`}
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    boxShadow:
-                      hoveredCard === card.id
-                        ? `0 0 30px -5px ${card.glowColor}`
-                        : "none",
-                    transition: "box-shadow 0.5s ease, transform 0.5s ease",
-                  }}
-                >
-                  {card.icon}
-                </div>
-
-                {/* Title */}
-                <h3 className="text-3xl font-extrabold mb-4 text-white tracking-tight font-display group-hover:text-transparent group-hover:bg-clip-text transition-all duration-300"
-                  style={hoveredCard === card.id ? {
-                    backgroundImage: `linear-gradient(135deg, white, ${card.glowColor})`,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                  } : {}}
-                >
-                  {card.title}
-                </h3>
-
-                {/* Description */}
-                <p className="text-slate-400 text-lg leading-relaxed flex-1 font-body">
-                  {card.description}
-                </p>
-
-                {/* Arrow */}
-                <div
-                  className={`mt-8 flex justify-end opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300 ${card.iconColor}`}
-                >
-                  <div
-                    className="p-3 rounded-full backdrop-blur-sm"
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <ArrowRight className="w-5 h-5" />
-                  </div>
-                </div>
-
-                {/* Corner glow */}
-                <div
-                  className={`absolute bottom-0 right-0 w-56 h-56 opacity-0 group-hover:opacity-15 blur-[80px] transition-opacity duration-700 pointer-events-none rounded-full bg-gradient-to-br ${card.gradient}`}
-                />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+          {/* Left: Illustration/Card */}
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            className="relative p-8 rounded-3xl bg-white/[0.02] border border-white/10 overflow-hidden group"
+          >
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+              <Puzzle className="w-40 h-40 text-cyan-500" />
+            </div>
+            <div className="relative z-10">
+              <h3 className="text-2xl font-bold text-white mb-4">Why use the extension?</h3>
+              <ul className="space-y-4">
+                {[
+                  "Scan coding problems on LeetCode/GFG",
+                  "Summarize and extract questions from articles",
+                  "Directly launch interviews from any tab",
+                  "Automatic context syncing with your dashboard"
+                ].map((text, i) => (
+                  <li key={i} className="flex items-start gap-3 text-slate-400">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>{text}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8 p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-sm">
+                <strong>Note:</strong> We are currently in manual distribution while we prepare for the Chrome Web Store.
               </div>
-            </motion.div>
-          ))}
+            </div>
+          </motion.div>
+
+          {/* Right: Steps */}
+          <div className="space-y-6">
+            {[
+              {
+                icon: Download,
+                title: "Download & Extract",
+                text: (
+                  <div className="flex flex-col gap-2">
+                    <span>Download our extension .zip file and extract it to find the '.output' folder.</span>
+                    <a 
+                      href="/chrome-mv3.zip" 
+                      download 
+                      className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold w-fit hover:bg-cyan-500/20 transition-all"
+                    >
+                      <Download className="w-3 h-3" />
+                      Download .zip
+                    </a>
+                  </div>
+                )
+              },
+              {
+                icon: Settings,
+                title: "Enable Developer Mode",
+                text: "Open 'chrome://extensions/' in Chrome and toggle 'Developer mode' in the top-right corner."
+              },
+              {
+                icon: FolderOpen,
+                title: "Load Unpacked",
+                text: "Click 'Load unpacked' and select the '.output' folder from your extraction."
+              },
+              {
+                icon: Chrome,
+                title: "Ready to Use",
+                text: "The CrackIt icon will now appear in your extensions. Pin it for quick access!"
+              }
+            ].map((step, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: 30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="flex gap-4 group"
+              >
+                <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:border-cyan-500/40 group-hover:bg-cyan-500/5 transition-all">
+                  <step.icon className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold mb-1 font-display tracking-tight">{step.title}</h4>
+                  <p className="text-slate-500 text-sm leading-relaxed">{step.text}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
