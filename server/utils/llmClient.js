@@ -1,12 +1,7 @@
 require("dotenv").config();
 const { ChatGroq } = require("@langchain/groq");
 const log = require("./logger");
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-
-if (!GROQ_API_KEY) {
-  log.error("LLM", "GROQ_API_KEY not found in environment variables. Code will fail until it is added.");
-}
+const requestContext = require("./requestContext");
 
 /**
  * Returns a configured LangChain Chat model instance (Groq).
@@ -14,12 +9,52 @@ if (!GROQ_API_KEY) {
  */
 function getLLM(options = {}) {
   const { temperature = 0.2, model = "llama-3.3-70b-versatile" } = options;
-  return new ChatGroq({
+  const ctx = requestContext.getStore() || {};
+  
+  // Use keys provided by the user session, otherwise fallback to default server key
+  const keysToUse = (ctx.apiKeys && ctx.apiKeys.length > 0) 
+    ? ctx.apiKeys.map(k => typeof k === 'object' ? k.value : k)
+    : [process.env.GROQ_API_KEY].filter(Boolean);
+  
+  if (keysToUse.length === 0) {
+    log.error("LLM", "No GROQ_API_KEY available dynamically or in env.");
+    return new ChatGroq({
+      model: model,
+      temperature: temperature,
+      apiKey: "dummy",
+      maxRetries: 1,
+    });
+  }
+
+  // Create an array of models, one for each key
+  const models = keysToUse.map(key => new ChatGroq({
     model: model,
     temperature: temperature,
-    apiKey: GROQ_API_KEY,
-    maxRetries: 3,
-  });
+    apiKey: key,
+    maxRetries: 1, // Let fallback handle exhaustion
+  }));
+
+  const primaryModel = models[0];
+
+  // If there are multiple keys, setup Langchain fallbacks
+  if (models.length > 1) {
+    const fallbackRunnable = primaryModel.withFallbacks({ 
+      fallbacks: models.slice(1) 
+    });
+
+    // Patch withStructuredOutput to apply the schema to all underlying models
+    // before wrapping them back in a fallback runnable. This prevents breaking
+    // the .withStructuredOutput() calls used across all agent files.
+    fallbackRunnable.withStructuredOutput = function(schema, config) {
+      const primaryStructured = primaryModel.withStructuredOutput(schema, config);
+      const fallbackStructured = models.slice(1).map(m => m.withStructuredOutput(schema, config));
+      return primaryStructured.withFallbacks({ fallbacks: fallbackStructured });
+    };
+
+    return fallbackRunnable;
+  }
+
+  return primaryModel;
 }
 
 /**
