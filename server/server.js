@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
-const { clerkMiddleware } = require('@clerk/express');
+const { clerkMiddleware, getAuth } = require('@clerk/express');
 require("dotenv").config({ override: true });
 
 console.log("[ENV Check] CLERK_SECRET_KEY exists:", !!process.env.CLERK_SECRET_KEY);
@@ -24,9 +24,30 @@ mongoose.connect(MONGODB_URI)
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.error("MongoDB connection error:", err));
 
-app.use((req, res, next) => {
-  console.log(`[REQ] ${req.method} ${req.url}`);
-  next();
+const requestContext = require("./utils/requestContext");
+const UserSettings = require("./models/UserSettings");
+const { decrypt } = require("./utils/cryptoUtils");
+
+app.use(async (req, res, next) => {
+  let apiKeys = [];
+  const auth = getAuth(req);
+  console.log(`[DEBUG-AUTH] ${req.method} ${req.url} | Auth Header: ${!!req.headers.authorization} | req.auth.userId: ${auth?.userId}`);
+  
+  try {
+    if (auth?.userId) {
+      const settings = await UserSettings.findOne({ clerkUserId: auth.userId });
+      if (settings) {
+        const decryptedStr = decrypt(settings.encryptedKeys, settings.iv, settings.authTag);
+        if (decryptedStr) apiKeys = JSON.parse(decryptedStr);
+      }
+    }
+  } catch (e) {
+    console.error("[REQ] Failed to decrypt keys:", e.message);
+  }
+
+  requestContext.run({ apiKeys }, () => {
+    next();
+  });
 });
 
 // REST Routes
@@ -34,6 +55,7 @@ app.use("/api/extract", require("./routes/extract"));
 app.use("/api/interviews", require("./routes/interview"));
 app.use("/api/resume", require("./routes/resumeRoutes"));
 app.use("/api/sessions", require("./routes/sessionRoutes"));
+app.use("/api/settings", require("./routes/settingsRoutes"));
 
 // Legacy fallbacks
 app.post("/api/extract", require("./controllers/extractController").extractQuestions);

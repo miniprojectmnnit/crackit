@@ -15,10 +15,19 @@ const { getLLM } = require("../utils/llmClient");
 const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const { z } = require("zod");
 const log = require("../utils/logger");
+const requestContext = require("../utils/requestContext");
+const UserSettings = require("../models/UserSettings");
+const { decrypt } = require("../utils/cryptoUtils");
 
 // Map session_id -> { ws, state, pendingNext }
 // pendingNext: what to do after speech_done arrives ("ask_question" | "generate_report" | null)
 const activeSessions = new Map();
+
+function extractQuestionText(q) {
+  if (!q) return "";
+  if (typeof q === "string") return q;
+  return q.title || q.question_text || q.question || JSON.stringify(q);
+}
 
 function sendToClient(ws, payload) {
   try {
@@ -179,14 +188,15 @@ async function initSession(ws, sessionId, authUserId) {
     } else {
        const questionsToSave = questions.map(q => {
          if (q && q._id) return { question_id: q._id };
-         return { text: q };
+         const textVal = extractQuestionText(q);
+         return { text: textVal };
        });
        await InterviewSession.findByIdAndUpdate(sessionId, { questions: questionsToSave, phase: "questioning" });
 
        const candidateName = resumeProfileObj?.candidate_info?.name || "there";
        const firstQuestionObj = questions[0];
        const firstQuestionText = firstQuestionObj 
-         ? (firstQuestionObj.title || firstQuestionObj.question_text || (typeof firstQuestionObj === 'string' ? firstQuestionObj : "the first problem"))
+         ? extractQuestionText(firstQuestionObj)
          : "your first question";
 
        const greetingByRound = {
@@ -238,8 +248,8 @@ function askQuestion(ws, sessionId, feedbackToPrefix) {
 
   if (!questionObj) return;
 
-  const questionText = questionObj.title || questionObj.question_text || questionObj;
-  const logText = typeof questionObj === "string" ? questionObj : (questionObj.title || questionObj.question_text || "Coding Question");
+  const questionText = extractQuestionText(questionObj);
+  const logText = questionText;
 
   log.info("WS", `❓ Q${idx + 1}/${total}: "${logText.substring(0, 60)}..."`);
 
@@ -333,7 +343,7 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, i
   // ── Detect meta-requests (repeat/clarify) ──────────────────────────────────
   if (isMetaRequest(answerText)) {
     log.info("WS", `↩️  Meta-request detected: "${answerText}" — repeating question`);
-    const repeatMsgText = typeof question === "string" ? question : (question.title || question.question_text || "the coding problem");
+    const repeatMsgText = extractQuestionText(question);
     const repeatMsg = `Of course! Here's the question again: ${repeatMsgText}`;
 
     state.transcript.push({ role: "interviewer", text: repeatMsg, question_index: idx });
@@ -446,10 +456,8 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, i
     } else if (state.round_type === "hr") {
        // --- HR Specialized Conversational Flow ---
        const nextQObj = state.questions[idx + 1] || null;
-       const targetQuestionTxt = typeof question === "string" ? question : (question.title || question.question_text || "HR Question");
-       const nextQuestionTxt = nextQObj 
-          ? (typeof nextQObj === "string" ? nextQObj : (nextQObj.title || nextQObj.question_text || "Next Question"))
-          : null;
+       const targetQuestionTxt = extractQuestionText(question);
+       const nextQuestionTxt = nextQObj ? extractQuestionText(nextQObj) : null;
        
        const evaluation = await evaluateHrTurn(targetQuestionTxt, nextQuestionTxt, correctedAnswer, currentQuestionHistory, idx, state.questions.length, state.resume_profile);
        log.success("WS", `✅ [HR] move_to_next: ${evaluation.move_to_next}`);
@@ -504,7 +512,7 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, i
        log.success("WS", `✅ Score: ${evaluation.score}, follow-up: ${evaluation.needs_followup}`);
 
        // Save evaluation
-       const questionTextStore = typeof question === "string" ? question : (question.title || question.question_text || "Coding Question");
+       const questionTextStore = extractQuestionText(question);
        await InterviewSession.findByIdAndUpdate(sessionId, {
          $push: {
            evaluations: {
@@ -643,6 +651,10 @@ function attachWebSocket(httpServer) {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const token = url.searchParams.get("token");
     let authUserId = null;
+    let userApiKeys = [];
+
+    // Deprecated: We no longer accept URL-based keys for security.
+    // Keys are fetched securely from MongoDB after token validation.
 
     if (!token) {
       log.warn("WS", `❌ Connection rejected: No token provided for session ${sessionId}`);
@@ -656,40 +668,51 @@ function attachWebSocket(httpServer) {
       });
       authUserId = decoded.sub;
       log.info("WS", `🔌 Authenticated — user: ${authUserId}, session: ${sessionId}`);
+
+      // Decrypt UserSettings for this WS Session securely on the backend
+      const settings = await UserSettings.findOne({ clerkUserId: authUserId });
+      if (settings && settings.encryptedKeys) {
+        const decryptedStr = decrypt(settings.encryptedKeys, settings.iv, settings.authTag);
+        if (decryptedStr) userApiKeys = JSON.parse(decryptedStr);
+      }
     } catch (e) {
       log.error("WS", `❌ Token verification failed: ${e.message}`);
       ws.close(4002, "Invalid authentication token");
       return;
     }
 
-    initSession(ws, sessionId, authUserId);
+    requestContext.run({ apiKeys: userApiKeys }, () => {
+      initSession(ws, sessionId, authUserId);
+    });
 
     ws.on("message", async (raw) => {
-      try {
-        const data = JSON.parse(raw);
+      requestContext.run({ apiKeys: userApiKeys }, async () => {
+        try {
+          const data = JSON.parse(raw);
 
-        if (data.type === "user_answer" && data.text?.trim()) {
-          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code, !!data.isFinalSubmission, data.language);
+          if (data.type === "user_answer" && data.text?.trim()) {
+            await handleUserAnswer(ws, sessionId, data.text.trim(), data.code, !!data.isFinalSubmission, data.language);
 
-        } else if (data.type === "speech_done") {
-          // Client signals that AI speech just finished — execute pending action
-          const sess = activeSessions.get(sessionId);
-          if (!sess || !sess.pendingNext) return;
+          } else if (data.type === "speech_done") {
+            // Client signals that AI speech just finished — execute pending action
+            const sess = activeSessions.get(sessionId);
+            if (!sess || !sess.pendingNext) return;
 
-          const pending = sess.pendingNext;
-          sess.pendingNext = null;
+            const pending = sess.pendingNext;
+            sess.pendingNext = null;
 
-          if (pending === "ask_question") {
-            askQuestion(ws, sessionId);
-          } else if (pending === "generate_report") {
-            await generateReport(ws, sessionId);
-          } else if (typeof pending === "object" && pending.type === "send_message") {
-            sendToClient(ws, pending.payload);
+            if (pending === "ask_question") {
+              askQuestion(ws, sessionId);
+            } else if (pending === "generate_report") {
+              await generateReport(ws, sessionId);
+            } else if (typeof pending === "object" && pending.type === "send_message") {
+              sendToClient(ws, pending.payload);
+            }
           }
+        } catch (e) {
+          log.error("WS", `Message error: ${e.message}`);
         }
-      } catch (e) {
-        log.error("WS", `Message error: ${e.message}`);
-      }
+      });
     });
 
     ws.on("close", () => {
