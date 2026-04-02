@@ -13,7 +13,6 @@ exports.uploadResume = async (req, res) => {
     const userId = auth.userId;
 
     if (!userId) {
-      if (file) fs.unlinkSync(file.path);
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -26,24 +25,16 @@ exports.uploadResume = async (req, res) => {
     // 2. Extract Text
     let rawText = "";
     if (file.mimetype === "application/pdf") {
-      const dataBuffer = fs.readFileSync(file.path);
+      const dataBuffer = file.buffer;
       const data = await pdfParse(dataBuffer);
       rawText = data.text;
     } else if (file.mimetype === "text/plain") {
-      rawText = fs.readFileSync(file.path, "utf-8");
+      rawText = file.buffer.toString("utf-8");
     } else {
-      // Clean up async processing if unsupported type
-      fs.unlinkSync(file.path);
       return res.status(400).json({ error: "Unsupported file type. Please upload PDF or TXT." });
     }
 
     log.info("RESUME", `📄 Extracted ${rawText.length} characters. Calling Agent...`);
-    // Clean up file
-    try {
-      fs.unlinkSync(file.path);
-    } catch (e) {
-      log.warn("RESUME", `Failed to unlink file: ${e.message}`);
-    }
 
     // 3. Parse via Agent
     const extractedData = await parseResumeText(rawText);
