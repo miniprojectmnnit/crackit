@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { UserButton, SignedIn, SignedOut } from "@clerk/clerk-react";
+import { MessageSquare } from "lucide-react";
 
 /* ─── Stylish Nav Button with icon, glow & animated underline ─── */
 const NavButton = ({ to, icon, label, active, glowColor }) => {
@@ -130,6 +131,14 @@ const Navbar = () => {
               }
             />
 
+            <NavButton
+              to="/feedback"
+              active={isActive("/feedback")}
+              glowColor="bg-cyan-500/10"
+              label="Feedback"
+              icon={<MessageSquare className="w-4 h-4" />}
+            />
+
             {/* Vertical separator */}
             <div className="w-[1px] h-7 bg-gradient-to-b from-transparent via-zinc-600/60 to-transparent mx-1" />
 
@@ -159,6 +168,13 @@ const Navbar = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
                 </svg>
               }
+            />
+            <NavButton
+              to="/feedback"
+              active={isActive("/feedback")}
+              glowColor="bg-cyan-500/10"
+              label="Feedback"
+              icon={<MessageSquare className="w-4 h-4" />}
             />
             <Link
               to="/sign-up"

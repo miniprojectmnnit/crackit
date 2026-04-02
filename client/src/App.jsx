@@ -12,6 +12,7 @@ import InterviewRoom from "./pages/InterviewRoom/InterviewRoom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import SignInPage from "./auth/SignInPage";
 import SignUpPage from "./auth/SignUpPage";
+import FeedbackPage from "./pages/FeedbackPage";
 
 const App = () => {
   return (
@@ -36,6 +37,9 @@ const App = () => {
             <Route path="/feed" element={<ProtectedRoute><InterviewHistory /></ProtectedRoute>} />
             <Route path="/report/:sessionId" element={<ProtectedRoute><InterviewReport /></ProtectedRoute>} />
             <Route path="/interview-report/:sessionId" element={<ProtectedRoute><InterviewReport /></ProtectedRoute>} />
+
+            {/* Feedback Page */}
+            <Route path="/feedback" element={<FeedbackPage />} />
 
             {/* 404 Page */}
             <Route path="*" element={<NotFound />} />
