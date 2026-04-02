@@ -37,12 +37,18 @@ app.use(async (req, res, next) => {
     if (auth?.userId) {
       const settings = await UserSettings.findOne({ clerkUserId: auth.userId });
       if (settings) {
+        console.log(`[WALLET] 📂 Found wallet for user: ${auth.userId}`);
         const decryptedStr = decrypt(settings.encryptedKeys, settings.iv, settings.authTag);
-        if (decryptedStr) apiKeys = JSON.parse(decryptedStr);
+        if (decryptedStr) {
+          apiKeys = JSON.parse(decryptedStr);
+          console.log(`[WALLET] ✅ Loaded ${apiKeys.length} keys from wallet.`);
+        }
+      } else {
+        console.log(`[WALLET] ❓ No wallet found in DB for user: ${auth.userId}`);
       }
     }
   } catch (e) {
-    console.error("[REQ] Failed to decrypt keys:", e.message);
+    console.error("[WALLET] ❌ Error loading wallet:", e.message);
   }
 
   requestContext.run({ apiKeys }, () => {

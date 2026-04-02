@@ -17,13 +17,15 @@ function getLLM(options = {}) {
     : [process.env.GROQ_API_KEY].filter(Boolean);
   
   if (keysToUse.length === 0) {
-    log.error("LLM", "No GROQ_API_KEY available dynamically or in env.");
+    log.error("LLM", `❌ No keys available for model ${model}. Dynamic keys count: ${ctx.apiKeys?.length || 0}, Env key present: ${!!process.env.GROQ_API_KEY}`);
     return new ChatGroq({
       model: model,
       temperature: temperature,
       apiKey: "dummy",
       maxRetries: 1,
     });
+  } else {
+    log.info("LLM", `🔗 Using ${keysToUse.length} key(s) for ${model} (${(ctx.apiKeys && ctx.apiKeys.length > 0) ? 'from USER WALLET' : 'from SERVER ENV'})`);
   }
 
   // Create an array of models, one for each key
