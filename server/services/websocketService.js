@@ -322,7 +322,7 @@ function isSkipRequest(text) {
   return skipPatterns.some(p => p.test(lower));
 }
 
-async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, isFinalSubmission = false) {
+async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, isFinalSubmission = false, language = null) {
   const session = activeSessions.get(sessionId);
   if (!session) return sendToClient(ws, { type: "error", message: "Session not active." });
 
@@ -368,7 +368,13 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, i
   }
 
   // Add to transcript
-  const answerEntry = { role: "candidate", text: correctedAnswer, question_index: idx };
+  const answerEntry = { 
+    role: "candidate", 
+    text: correctedAnswer, 
+    code: codeContent,
+    language: language,
+    question_index: idx 
+  };
   state.transcript.push(answerEntry);
 
   await InterviewSession.findByIdAndUpdate(sessionId, {
@@ -665,7 +671,7 @@ function attachWebSocket(httpServer) {
         const data = JSON.parse(raw);
 
         if (data.type === "user_answer" && data.text?.trim()) {
-          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code, !!data.isFinalSubmission);
+          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code, !!data.isFinalSubmission, data.language);
 
         } else if (data.type === "speech_done") {
           // Client signals that AI speech just finished — execute pending action
