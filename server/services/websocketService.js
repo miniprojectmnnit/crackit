@@ -306,9 +306,7 @@ function isMetaRequest(text) {
     /^(hello|hi|hey)[\s,!.]*$/,
     /^(what|huh|sorry|pardon)[\s?!.]*$/
   ];
-  // Avoid catching short words like "next" or "skip" as meta-requests
-  const isShortWord = lower.length < 4; 
-  return metaPatterns.some(p => p.test(lower)) || isShortWord;
+  return metaPatterns.some(p => p.test(lower));
 }
 
 // Detect if the user explicitly wants to skip or move to the next question
