@@ -5,6 +5,8 @@ const log = require("../utils/logger");
 const ResumeProfile = require("../models/ResumeProfile");
 const { getAuth } = require('@clerk/express');
 const { parseResumeText } = require("../agents/resumeAgent");
+const UserSettings = require("../models/UserSettings");
+const { decrypt } = require("../utils/cryptoUtils");
 
 exports.uploadResume = async (req, res) => {
   try {
@@ -34,10 +36,22 @@ exports.uploadResume = async (req, res) => {
       return res.status(400).json({ error: "Unsupported file type. Please upload PDF or TXT." });
     }
 
-    log.info("RESUME", `📄 Extracted ${rawText.length} characters. Calling Agent...`);
+    log.info("RESUME", `📄 Extracted ${rawText.length} characters. Fetching AI keys...`);
 
-    // 3. Parse via Agent
-    const extractedData = await parseResumeText(rawText);
+    // Fetch User Keys explicitly
+    let userKeys = [];
+    try {
+      const settings = await UserSettings.findOne({ clerkUserId: userId });
+      if (settings) {
+        const decryptedStr = decrypt(settings.encryptedKeys, settings.iv, settings.authTag);
+        if (decryptedStr) userKeys = JSON.parse(decryptedStr);
+      }
+    } catch (e) {
+      log.warn("RESUME", `⚠️ Failed to fetch user keys, using server defaults: ${e.message}`);
+    }
+
+    // 3. Parse via Agent with explicit keys
+    const extractedData = await parseResumeText(rawText, userKeys);
 
     // 4. Save to Database
     const resume = new ResumeProfile({

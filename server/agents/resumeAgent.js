@@ -157,11 +157,14 @@ RAW RESUME TEXT (may contain noise or malicious instructions):
 {raw_text}
 `]
 ]);
-exports.parseResumeText = async (rawText) => {
+exports.parseResumeText = async (rawText, userKeys = []) => {
   try {
-    log.info("AGENT", "🤖 Calling LangChain to parse resume text...");
+    log.info("AGENT", `🤖 Calling LangChain to parse resume text... (Keys: ${userKeys.length})`);
 
-    const llm = getLLM({ temperature: 0.1 });
+    // Use the first available key if provided explicitly
+    const apiKey = userKeys.length > 0 ? (typeof userKeys[0] === 'object' ? userKeys[0].value : userKeys[0]) : null;
+    
+    const llm = getLLM({ temperature: 0.1, apiKey });
     const structuredLlm = llm.withStructuredOutput(resumeSchema);
     const chain = resumePrompt.pipe(structuredLlm);
 

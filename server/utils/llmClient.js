@@ -8,13 +8,18 @@ const requestContext = require("./requestContext");
  * Automatically handles retries and fallback models.
  */
 function getLLM(options = {}) {
-  const { temperature = 0.2, model = "llama-3.3-70b-versatile" } = options;
+  const { temperature = 0.2, model = "llama-3.3-70b-versatile", apiKey: manualKey } = options;
   const ctx = requestContext.getStore() || {};
   
-  // Use keys provided by the user session, otherwise fallback to default server key
-  const keysToUse = (ctx.apiKeys && ctx.apiKeys.length > 0) 
-    ? ctx.apiKeys.map(k => typeof k === 'object' ? k.value : k)
-    : [process.env.GROQ_API_KEY].filter(Boolean);
+  // Use manual key, then context keys, then process.env
+  let keysToUse = [];
+  if (manualKey) {
+    keysToUse = [manualKey];
+  } else if (ctx.apiKeys && ctx.apiKeys.length > 0) {
+    keysToUse = ctx.apiKeys.map(k => typeof k === 'object' ? k.value : k);
+  } else {
+    keysToUse = [process.env.GROQ_API_KEY].filter(Boolean);
+  }
   
   if (keysToUse.length === 0) {
     log.error("LLM", `❌ No keys available for model ${model}. Dynamic keys count: ${ctx.apiKeys?.length || 0}, Env key present: ${!!process.env.GROQ_API_KEY}`);
