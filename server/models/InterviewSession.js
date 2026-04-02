@@ -47,6 +47,8 @@ const interviewSessionSchema = new mongoose.Schema({
     {
       role: { type: String, enum: ["interviewer", "candidate"] },
       text: { type: String },
+      code: { type: String }, // User's code submission
+      language: { type: String }, // Language of the code submission
       question_index: { type: Number },
       timestamp: { type: Date, default: Date.now }
     }

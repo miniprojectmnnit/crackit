@@ -125,67 +125,78 @@ const InterviewHistory = () => {
               {expandedId === session._id && (
                 <div className="p-6 bg-[#13151D] border-t border-[#2A2E3D]">
                   <h4 className="text-lg font-semibold mb-6 flex items-center gap-2 text-indigo-300">
-                    Conversation Transcript
+                    Interview Conversation
                   </h4>
                   
-                  {session.questions.length === 0 ? (
-                     <p className="text-gray-500 italic">No questions answered in this session.</p>
+                  {(!session.transcript || session.transcript.length === 0) ? (
+                     session.questions.length === 0 ? (
+                        <p className="text-gray-500 italic">No conversation recorded in this session.</p>
+                     ) : (
+                        <div className="space-y-8 pl-2 md:pl-4 border-l-2 border-[#2A2E3D]/50 relative">
+                           {session.questions.map((q, idx) => (
+                             <div key={q._id || idx} className="relative">
+                               <div className="absolute -left-[21px] md:-left-[29px] top-1.5 w-4 h-4 rounded-full bg-indigo-500 border-4 border-[#13151D]" />
+                               <div className="mb-4">
+                                 <span className="text-xs font-bold uppercase text-indigo-400 mb-1 block tracking-wider">Interviewer</span>
+                                 <div className="bg-[#2A2E3D]/40 border border-[#2A2E3D] rounded-xl p-4 text-gray-200 leading-relaxed shadow-sm">
+                                   <p className="font-medium">{q.question_id?.question_text || q.text || "Technical Question"}</p>
+                                 </div>
+                               </div>
+                               <div className="mb-4 pl-4 md:pl-8">
+                                 <span className="text-xs font-bold uppercase text-emerald-400 mb-1 block tracking-wider">Candidate (You)</span>
+                                 <div className="bg-[#1A1D27] border border-emerald-500/20 rounded-xl p-4 text-emerald-50/90 leading-relaxed shadow-sm">
+                                   {q.answer ? <p>{q.answer}</p> : <p className="italic text-gray-500">No response recorded.</p>}
+                                 </div>
+                               </div>
+                             </div>
+                           ))}
+                        </div>
+                     )
                   ) : (
-                     <div className="space-y-8 pl-2 md:pl-4 border-l-2 border-[#2A2E3D]/50 relative">
-                        {session.questions.map((q, idx) => (
-                          <div key={q._id || idx} className="relative">
-                            {/* Timeline dot */}
-                            <div className="absolute -left-[21px] md:-left-[29px] top-1.5 w-4 h-4 rounded-full bg-indigo-500 border-4 border-[#13151D]" />
-                            
-                            {/* Question block */}
-                            <div className="mb-4">
-                              <span className="text-xs font-bold uppercase text-indigo-400 mb-1 block tracking-wider">Interviewer</span>
-                              <div className="bg-[#2A2E3D]/40 border border-[#2A2E3D] rounded-xl p-4 text-gray-200 leading-relaxed shadow-sm">
-                                <p className="font-medium">{q.question_id?.question_text || "Unknown Question"}</p>
-                                {q.question_id?.type === 'Coding' && (
-                                  <span className="inline-block mt-2 px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded font-mono">Coding Task</span>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Answer block */}
-                            <div className="mb-4 pl-4 md:pl-8">
-                              <span className="text-xs font-bold uppercase text-emerald-400 mb-1 block tracking-wider">Candidate (You)</span>
-                              <div className="bg-[#1A1D27] border border-emerald-500/20 rounded-xl p-4 text-emerald-50/90 leading-relaxed shadow-sm">
-                                {q.answer ? (
-                                  q.question_id?.type === 'Coding' ? (
-                                    <pre className="text-sm font-mono overflow-x-auto text-emerald-200"><code>{q.answer}</code></pre>
-                                  ) : (
-                                    <p>{q.answer}</p>
-                                  )
-                                ) : (
-                                  <p className="italic text-gray-500">No physical response recorded.</p>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Score/Feedback block */}
-                            <div className="pl-4 md:pl-8 flex items-center gap-3">
-                              <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-sm ${
-                                (q.score || 0) >= 80 ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 
-                                (q.score || 0) >= 50 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 
-                                'bg-red-500/20 text-red-400 border border-red-500/30'
+                     <div className="space-y-6">
+                        {session.transcript.map((entry, idx) => {
+                          const isAi = entry.role === 'interviewer' || entry.role === 'assistant';
+                          return (
+                            <div key={idx} className={`flex flex-col ${isAi ? 'items-start' : 'items-end'}`}>
+                              <div className={`max-w-[90%] md:max-w-[80%] rounded-2xl p-4 shadow-sm ${
+                                isAi 
+                                  ? 'bg-[#2A2E3D]/50 border border-[#2A2E3D] text-gray-200 rounded-tl-none' 
+                                  : 'bg-indigo-600/20 border border-indigo-500/30 text-indigo-50 rounded-tr-none'
                               }`}>
-                                <Star size={16} fill="currentColor" /> Score: {q.score || 0}/100
+                                <div className="flex items-center justify-between gap-4 mb-2">
+                                  <span className={`text-[10px] font-bold uppercase tracking-widest ${isAi ? 'text-indigo-400' : 'text-indigo-300'}`}>
+                                    {isAi ? 'Interviewer' : 'Candidate (You)'}
+                                  </span>
+                                  <span className="text-[9px] text-gray-500">
+                                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{entry.text}</p>
+                                
+                                {entry.code && (
+                                  <div className="mt-4 rounded-xl overflow-hidden border border-black/40 bg-[#0d0d0d] shadow-inner">
+                                    <div className="bg-[#1a1a1a] px-3 py-1.5 border-b border-black/40 flex items-center justify-between">
+                                      <span className="text-[10px] font-mono text-gray-500 uppercase">{entry.language || 'Code'}</span>
+                                      <Code size={12} className="text-gray-600" />
+                                    </div>
+                                    <pre className="p-4 text-[13px] font-mono text-emerald-400 overflow-x-auto custom-scrollbar leading-relaxed">
+                                      <code>{entry.code}</code>
+                                    </pre>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                      </div>
                   )}
                   
-                  {session.resume_id && (
-                    <div className="mt-8 pt-6 border-t border-[#2A2E3D] text-center">
-                       <a href={`/interview-report/${session._id}`} className="inline-block px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-medium transition-colors shadow-lg shadow-indigo-500/20">
-                         View Full AI Evaluation Report
-                       </a>
-                    </div>
-                  )}
+                  <div className="mt-10 pt-6 border-t border-[#2A2E3D] flex flex-wrap gap-4 justify-center">
+                     <a href={`/report/${session._id}`} className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-medium transition-colors shadow-lg shadow-indigo-500/20 flex items-center gap-2">
+                       View Full AI Report <ArrowRight size={16} />
+                     </a>
+                  </div>
                 </div>
               )}
             </div>

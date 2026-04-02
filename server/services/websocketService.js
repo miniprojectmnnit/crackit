@@ -296,7 +296,7 @@ function setPendingNextWithFallback(sessionId, pendingValue, ws) {
 
 // ─── Handle User Answer ───────────────────────────────────────────────────────
 
-// Detect if the user is making a meta-request rather than answering the question
+// Detect if the user is making a meta-request (repeat/clarify) rather than answering the question
 function isMetaRequest(text) {
   const lower = text.toLowerCase().trim();
   const metaPatterns = [
@@ -306,10 +306,21 @@ function isMetaRequest(text) {
     /^(hello|hi|hey)[\s,!.]*$/,
     /^(what|huh|sorry|pardon)[\s?!.]*$/
   ];
-  return metaPatterns.some(p => p.test(lower)) || lower.length < 6;
+  return metaPatterns.some(p => p.test(lower));
 }
 
-async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, isFinalSubmission = false) {
+// Detect if the user explicitly wants to skip or move to the next question
+function isSkipRequest(text) {
+  const lower = text.toLowerCase().trim();
+  const skipPatterns = [
+    /^(can we |please |could we )?(move on|next question|skip|skip this|move to (the )?next)/,
+    /^next[\s,!.]*$/,
+    /^skip[\s,!.]*$/
+  ];
+  return skipPatterns.some(p => p.test(lower));
+}
+
+async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, isFinalSubmission = false, language = null) {
   const session = activeSessions.get(sessionId);
   if (!session) return sendToClient(ws, { type: "error", message: "Session not active." });
 
@@ -355,7 +366,13 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, i
   }
 
   // Add to transcript
-  const answerEntry = { role: "candidate", text: correctedAnswer, question_index: idx };
+  const answerEntry = { 
+    role: "candidate", 
+    text: correctedAnswer, 
+    code: codeContent,
+    language: language,
+    question_index: idx 
+  };
   state.transcript.push(answerEntry);
 
   await InterviewSession.findByIdAndUpdate(sessionId, {
@@ -652,7 +669,7 @@ function attachWebSocket(httpServer) {
         const data = JSON.parse(raw);
 
         if (data.type === "user_answer" && data.text?.trim()) {
-          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code, !!data.isFinalSubmission);
+          await handleUserAnswer(ws, sessionId, data.text.trim(), data.code, !!data.isFinalSubmission, data.language);
 
         } else if (data.type === "speech_done") {
           // Client signals that AI speech just finished — execute pending action

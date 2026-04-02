@@ -352,8 +352,8 @@ const InterviewRoom = () => {
     setPendingAnswer('');
     resetTranscript();
 
-    sendAnswerRef.current?.(text, codeContent, isFinal);
-  }, [stopListening, resetTranscript, code]);
+    sendAnswerRef.current?.(text, codeContent, isFinal, language);
+  }, [stopListening, resetTranscript, code, language]);
 
   // Handle Code Execution to backend compiler container structure
   const runCode = async () => {
