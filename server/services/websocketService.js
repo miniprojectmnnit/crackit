@@ -296,7 +296,7 @@ function setPendingNextWithFallback(sessionId, pendingValue, ws) {
 
 // ─── Handle User Answer ───────────────────────────────────────────────────────
 
-// Detect if the user is making a meta-request rather than answering the question
+// Detect if the user is making a meta-request (repeat/clarify) rather than answering the question
 function isMetaRequest(text) {
   const lower = text.toLowerCase().trim();
   const metaPatterns = [
@@ -306,7 +306,20 @@ function isMetaRequest(text) {
     /^(hello|hi|hey)[\s,!.]*$/,
     /^(what|huh|sorry|pardon)[\s?!.]*$/
   ];
-  return metaPatterns.some(p => p.test(lower)) || lower.length < 6;
+  // Avoid catching short words like "next" or "skip" as meta-requests
+  const isShortWord = lower.length < 4; 
+  return metaPatterns.some(p => p.test(lower)) || isShortWord;
+}
+
+// Detect if the user explicitly wants to skip or move to the next question
+function isSkipRequest(text) {
+  const lower = text.toLowerCase().trim();
+  const skipPatterns = [
+    /^(can we |please |could we )?(move on|next question|skip|skip this|move to (the )?next)/,
+    /^next[\s,!.]*$/,
+    /^skip[\s,!.]*$/
+  ];
+  return skipPatterns.some(p => p.test(lower));
 }
 
 async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, isFinalSubmission = false) {
