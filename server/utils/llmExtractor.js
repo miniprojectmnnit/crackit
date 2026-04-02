@@ -26,10 +26,11 @@ WHAT TO IGNORE:
 - article headers, navigation elements, company intros, solutions, commentary
 
 CLASSIFICATION RULES:
-- Coding: Algorithm or data structure problems.
-- Behavioral: Teamwork, challenges, leadership.
-- System Design: Large systems, architectures, scalability.
-- General: Conceptual technical questions (OS, DB).`],
+- Coding: Algorithm problems, data structures, or code-related questions. If it asks to solve a problem with a function, it is CODING.
+- Behavioral: Teamwork, challenges, leadership, and experience.
+- System Design: Large systems, architectures, scalability, and design.
+- General: Knowledge-based questions (OS, Networking, DBMS) that DON'T require coding a solution.
+`],
   ["user", `================ ARTICLE =================
 {article_text}`]
 ]);

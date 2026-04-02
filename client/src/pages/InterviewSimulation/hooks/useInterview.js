@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from "react-hot-toast";
 import { generateCodeTemplate } from '../../../lib/codeTemplate';
 import useGeminiVoice from './useGeminiVoice';
@@ -14,6 +14,7 @@ const DEFAULT_CODE = '// Write your solution here...';
  * text-to-speech, speech-to-text, and navigation between questions.
  */
 export const useInterview = (initialSessionId) => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const url = searchParams.get('url');
   const resumeId = searchParams.get('resumeId');
@@ -133,6 +134,15 @@ export const useInterview = (initialSessionId) => {
       setSessionData(sessionResponse);
       console.log('[INTERVIEW] ✅ Session created — ID:', sessionResponse._id);
 
+      // --- REDIRECT TO PREMIUM UI ---
+      // If we are starting from a URL (extension) or it's a DSA round, 
+      // swap to the modern WebSocket-powered InterviewRoom immediately.
+      if (url || sessionResponse.round_type === 'dsa') {
+        console.log('[INTERVIEW] 🚀 Redirecting to Premium Interview Room...');
+        navigate(`/interview-room/${sessionResponse._id}`);
+        return;
+      }
+
       // 2. Fetch Questions (Wait, if using resumeId, questions are returned in the session obj)
       // Actually, we need to adapt here: When using resume_id, createSession generates questions
       //, but the return doesn't return the populated questions directly, it returns the session.
@@ -213,14 +223,52 @@ export const useInterview = (initialSessionId) => {
         speak(currentQuestion?.question_text || "");
 
         if (currentQuestion.type === 'Coding') {
-          console.log('[INTERVIEW] 💻 Generated code template for coding question');
-          setCode(generateCodeTemplate(currentQuestion, language));
+          console.log('[INTERVIEW] 💻 Setup code state for new coding question');
+          const qId = currentQuestion._id || currentQuestion.question_id;
+          const storageKey = `crackit_code_${sessionData?._id}_${sessionData?.round_type || 'general'}_${qId}_${language}`;
+          const savedCode = localStorage.getItem(storageKey);
+          if (savedCode) {
+             setCode(savedCode);
+          } else {
+             setCode(generateCodeTemplate(currentQuestion, language));
+          }
         } else {
           setCode(DEFAULT_CODE);
         }
       }
     }
-  }, [currentIndex, currentQuestion]);
+  }, [currentIndex, currentQuestion, sessionData, language]); // added language and sessionData for safety
+
+  // Local Storage Recovery for Language Changes
+  const lastLanguageRef = useRef(language);
+
+  useEffect(() => {
+    if (currentQuestion && currentQuestion.type === 'Coding') {
+      const qId = currentQuestion._id || currentQuestion.question_id;
+      const isNewLanguage = language !== lastLanguageRef.current;
+
+      if (isNewLanguage) {
+        const storageKey = `crackit_code_${sessionData?._id}_${sessionData?.round_type || 'general'}_${qId}_${language}`;
+        const savedCode = localStorage.getItem(storageKey);
+
+        if (savedCode) {
+            setCode(savedCode);
+        } else {
+            setCode(generateCodeTemplate(currentQuestion, language));
+        }
+        lastLanguageRef.current = language;
+      }
+    }
+  }, [language, currentQuestion, sessionData]);
+
+  // Save code to local storage when code changes
+  useEffect(() => {
+    if (currentQuestion && currentQuestion.type === 'Coding' && code && sessionData?._id) {
+      const qId = currentQuestion._id || currentQuestion.question_id;
+      const storageKey = `crackit_code_${sessionData._id}_${sessionData?.round_type || 'general'}_${qId}_${language}`;
+      localStorage.setItem(storageKey, code);
+    }
+  }, [code, currentQuestion, language, sessionData]);
 
   // --- Internal submit function (used by handleNext too) ---
   const _submitAnswerInternal = async (answerContent, questionToEval) => {

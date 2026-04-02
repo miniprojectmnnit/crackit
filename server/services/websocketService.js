@@ -10,6 +10,7 @@ const { generateHrQuestions } = require("../agents/hrAgent");
 const { generateFinalReport } = require("../agents/reportAgent");
 const { correctTranscription } = require("../agents/sttCorrectionAgent");
 const { evaluateDsaTurn } = require("../agents/dsaInterviewAgent");
+const { evaluateHrTurn } = require("../agents/hrInterviewAgent");
 const { getLLM } = require("../utils/llmClient");
 const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const { z } = require("zod");
@@ -74,23 +75,29 @@ async function initSession(ws, sessionId, authUserId) {
       return sendToClient(ws, { type: "error", message: "Access denied." });
     }
 
-    const resumeProfile = await ResumeProfile.findById(session.resume_id);
-    if (!resumeProfile) return sendToClient(ws, { type: "error", message: "Resume not found." });
+    let resumeProfileObj = null;
+    if (session.resume_id) {
+      const resumeProfile = await ResumeProfile.findById(session.resume_id);
+      if (resumeProfile) resumeProfileObj = resumeProfile.toObject();
+    }
+
+    const isResuming = session.transcript && session.transcript.length > 0;
 
     // Build initial in-memory state
     const state = {
       session_id: sessionId,
-      resume_profile: resumeProfile.toObject(),
+      resume_profile: resumeProfileObj,
       questions: [],
-      current_q_index: 0,
-      follow_up_count: 0,
-      transcript: [],
-      phase: "greeting"
+      current_q_index: session.current_q_index || 0,
+      follow_up_count: session.follow_up_count || 0,
+      transcript: session.transcript || [],
+      phase: session.phase || "greeting",
+      round_type: session.round_type || "resume"
     };
 
     activeSessions.set(sessionId, { ws, state, pendingNext: null });
 
-    log.success("WS", `✅ Session ${sessionId} initialized`);
+    log.success("WS", `✅ Session ${sessionId} initialized. Resuming: ${isResuming}`);
     sendToClient(ws, { type: "session_ready", session_id: sessionId });
 
     // ── Route question generation by round_type ───────────────────────────────
@@ -98,88 +105,118 @@ async function initSession(ws, sessionId, authUserId) {
     const context = session.context || {};
     log.info("WS", `🎯 Round type: ${roundType.toUpperCase()}`);
 
-    let questions;
+    let questions = [];
     let roundLabel;
-    try {
-      switch (roundType) {
-        case "dsa":
-          roundLabel = "DSA Round";
-          questions = await generateDsaQuestions(resumeProfile.toObject(), context);
-          break;
 
-        case "system_design":
-          roundLabel = "System Design Round";
-          questions = await generateSystemDesignQuestions(resumeProfile.toObject(), context, 10);
-          break;
+    // --- Extension Question Persistence ---
+    // If questions were already extracted/assigned to this session (e.g. via extension), use them.
+    if (session.questions && session.questions.length > 0) {
+      log.info("WS", `💾 Session ${sessionId} already has ${session.questions.length} questions. Bypassing generation.`);
+      const populated = await InterviewSession.findById(sessionId).populate("questions.question_id");
+      questions = populated.questions.map(q => q.question_id || q.text);
+      roundLabel = roundType === "dsa" ? "DSA Round" : "Technical Round";
+    } else {
+      try {
+        switch (roundType) {
+          case "dsa":
+            roundLabel = "DSA Round";
+            questions = await generateDsaQuestions(resumeProfileObj || {}, context);
+            break;
 
-        case "hr":
-          roundLabel = "HR Round";
-          questions = await generateHrQuestions(resumeProfile.toObject(), context, 10);
-          break;
+          case "system_design":
+            roundLabel = "System Design Round";
+            questions = await generateSystemDesignQuestions(resumeProfileObj || {}, context, 10);
+            break;
 
-        case "resume":
-        default:
-          roundLabel = "Resume-Based Round";
-          questions = await generateInterviewPlan(resumeProfile.toObject(), 10, context);
-          break;
+          case "hr":
+            roundLabel = "HR Round";
+            questions = await generateHrQuestions(resumeProfileObj || {}, context, 10);
+            break;
+
+          case "resume":
+          default:
+            roundLabel = "Resume-Based Round";
+            questions = await generateInterviewPlan(resumeProfileObj || {}, 10, context);
+            break;
+        }
+      } catch (e) {
+        log.error("WS", `Failed to generate questions: ${e.message}`);
+        questions = [
+          "Tell me about yourself and your technical background.",
+          "What are your strongest technical skills and why?",
+          "Describe a challenging project you worked on recently.",
+          "How do you approach debugging a complex problem?",
+          "What's your understanding of RESTful API design principles?"
+        ];
       }
-    } catch (e) {
-      log.error("WS", `Failed to generate questions: ${e.message}`);
-      questions = [
-        "Tell me about yourself and your technical background.",
-        "What are your strongest technical skills and why?",
-        "Describe a challenging project you worked on recently.",
-        "How do you approach debugging a complex problem?",
-        "What's your understanding of RESTful API design principles?",
-        "Can you explain how you would design a scalable system?",
-        "What's your favorite data structure and when would you use it?",
-        "Describe a situation where you had to learn a new technology quickly.",
-        "How do you ensure code quality in your projects?",
-        "Where do you see yourself growing technically in the next year?"
-      ];
     }
 
     state.questions = questions;
-    const questionsToSave = questions.map(q => {
-      if (q && q._id) return { question_id: q._id };
-      return { text: q };
-    });
-    await InterviewSession.findByIdAndUpdate(sessionId, { questions: questionsToSave, phase: "questioning" });
 
-    // ── Build combined greeting + first question (single Gemini turn) ──────────
-    const candidateName = resumeProfile.candidate_info?.name || "there";
-    const firstQuestionObj = questions[0];
-    const firstQuestionText = firstQuestionObj && firstQuestionObj.title ? firstQuestionObj.title : firstQuestionObj;
+    // ── Resume or Fresh Start ───────────────────────────────────────────────
+    if (isResuming) {
+       log.info("WS", `🔄 Resuming session at Q${state.current_q_index + 1}/${questions.length}`);
+       const currentQObj = questions[state.current_q_index];
+       
+       sendToClient(ws, {
+         type: "session_restored",
+         transcript: state.transcript,
+         phase: state.phase,
+         session_id: sessionId,
+         progress: { current: state.current_q_index + 1, total: questions.length },
+         question: currentQObj
+       });
 
-    const greetingByRound = {
-      dsa: `Hello ${candidateName}! Welcome to the DSA round of your CrackIt interview. I'll ask you 3 coding problems — one easy, one medium, and one hard. Think out loud as you work through them. Let's begin! Here's your first problem: ${firstQuestionText}. Please tell me your approach before you code.`,
-      system_design: `Hello ${candidateName}! Welcome to your System Design interview. I'll ask you ${questions.length} design questions to assess how you think about large-scale systems. Take your time and walk me through your reasoning. Let's start! Here's your first question: ${firstQuestionText}`,
-      hr: `Hello ${candidateName}! Welcome to your HR and Behavioral interview. I'll ask you ${questions.length} questions to understand your experience, teamwork, and problem-solving approach. Be natural and specific with examples. Here's our first question: ${firstQuestionText}`,
-      resume: `Hello ${candidateName}! Welcome to your CrackIt technical interview. I'm your AI interviewer today. We'll go through ${questions.length} questions covering your technical background and projects. Take your time with each answer. Let's begin! Here's your first question: ${firstQuestionText}`
-    };
+       const welcomeBackMsg = "Welcome back! Let's continue from where we left off. Please go ahead.";
+       sendToClient(ws, {
+         type: "ai_message",
+         text: welcomeBackMsg,
+         phase: state.phase,
+         session_id: sessionId,
+         progress: { current: state.current_q_index + 1, total: questions.length },
+         question: currentQObj
+       });
+    } else {
+       const questionsToSave = questions.map(q => {
+         if (q && q._id) return { question_id: q._id };
+         return { text: q };
+       });
+       await InterviewSession.findByIdAndUpdate(sessionId, { questions: questionsToSave, phase: "questioning" });
 
-    const combinedOpening = greetingByRound[roundType] || greetingByRound.resume;
+       const candidateName = resumeProfileObj?.candidate_info?.name || "there";
+       const firstQuestionObj = questions[0];
+       const firstQuestionText = firstQuestionObj 
+         ? (firstQuestionObj.title || firstQuestionObj.question_text || (typeof firstQuestionObj === 'string' ? firstQuestionObj : "the first problem"))
+         : "your first question";
 
-    state.transcript.push({ role: "interviewer", text: combinedOpening, question_index: 0 });
-    state.phase = "questioning";
-    state.current_q_index = 0;
-    state.round_type = roundType;
+       const greetingByRound = {
+         dsa: `Hello ${candidateName}! Welcome to the DSA round of your CrackIt interview. I'll ask you 3 coding problems — one easy, one medium, and one hard. Think out loud as you work through them. Let's begin! Here's your first problem: ${firstQuestionText}. Please tell me your approach before you code.`,
+         system_design: `Hello ${candidateName}! Welcome to your System Design interview. I'll ask you ${questions.length} design questions to assess how you think about large-scale systems. Take your time and walk me through your reasoning. Let's start! Here's your first question: ${firstQuestionText}`,
+         hr: `Hello ${candidateName}! Welcome to your HR and Behavioral interview. Before we dive into the specific questions, I'd love to start by getting to know you a bit better. Could you tell me a little about yourself and your background?`,
+         resume: `Hello ${candidateName}! Welcome to your CrackIt technical interview. I'm your AI interviewer today. We'll go through ${questions.length} questions covering your technical background and projects. Take your time with each answer. Let's begin! Here's your first question: ${firstQuestionText}`
+       };
 
-    await InterviewSession.findByIdAndUpdate(sessionId, {
-      phase: "questioning",
-      current_q_index: 0,
-      $push: { transcript: { role: "interviewer", text: combinedOpening, question_index: 0 } }
-    });
+       const combinedOpening = greetingByRound[roundType] || greetingByRound.resume;
 
-    // Single message — client speaks it, then opens mic when done
-    sendToClient(ws, {
-      type: "ai_message",
-      text: combinedOpening,
-      phase: "questioning",
-      session_id: sessionId,
-      progress: { current: 1, total: questions.length },
-      question: firstQuestionObj
-    });
+       state.transcript.push({ role: "interviewer", text: combinedOpening, question_index: 0 });
+       state.phase = "questioning";
+       state.current_q_index = 0;
+
+       await InterviewSession.findByIdAndUpdate(sessionId, {
+         phase: "questioning",
+         current_q_index: 0,
+         $push: { transcript: { role: "interviewer", text: combinedOpening, question_index: 0 } }
+       });
+
+       sendToClient(ws, {
+         type: "ai_message",
+         text: combinedOpening,
+         phase: "questioning",
+         session_id: sessionId,
+         progress: { current: 1, total: questions.length },
+         question: firstQuestionObj
+       });
+    }
 
   } catch (e) {
     log.error("WS", `Session init failed: ${e.message}`);
@@ -389,6 +426,60 @@ async function handleUserAnswer(ws, sessionId, answerText, codeContent = null, i
            });
         }
 
+    } else if (state.round_type === "hr") {
+       // --- HR Specialized Conversational Flow ---
+       const nextQObj = state.questions[idx + 1] || null;
+       const targetQuestionTxt = typeof question === "string" ? question : (question.title || question.question_text || "HR Question");
+       const nextQuestionTxt = nextQObj 
+          ? (typeof nextQObj === "string" ? nextQObj : (nextQObj.title || nextQObj.question_text || "Next Question"))
+          : null;
+       
+       const evaluation = await evaluateHrTurn(targetQuestionTxt, nextQuestionTxt, correctedAnswer, currentQuestionHistory, idx, state.questions.length, state.resume_profile);
+       log.success("WS", `✅ [HR] move_to_next: ${evaluation.move_to_next}`);
+
+       const nextActionEntry = { role: "interviewer", text: evaluation.ai_response, question_index: idx };
+       state.transcript.push(nextActionEntry);
+
+       const pushQuery = { transcript: nextActionEntry };
+       if (evaluation.move_to_next) {
+         pushQuery.evaluations = { question_index: idx, question: targetQuestionTxt, answer: correctedAnswer, score: 90, feedback: evaluation.ai_response };
+       }
+       await InterviewSession.findByIdAndUpdate(sessionId, { $push: pushQuery });
+
+       if (evaluation.move_to_next && idx < state.questions.length - 1) {
+          state.current_q_index++;
+          await InterviewSession.findByIdAndUpdate(sessionId, { current_q_index: state.current_q_index });
+          
+          sendToClient(ws, {
+            type: "ai_message",
+            text: evaluation.ai_response,
+            phase: "questioning",
+            session_id: sessionId,
+            progress: { current: state.current_q_index + 1, total: state.questions.length },
+            question: state.questions[state.current_q_index]
+          });
+       } else if (evaluation.move_to_next && idx >= state.questions.length - 1) {
+          const wrapUpMsg = `${evaluation.ai_response} That completes our interview. You did a fantastic job! Give me just a moment to put together your feedback report.`;
+          sendToClient(ws, {
+            type: "ai_message",
+            text: wrapUpMsg,
+            phase: "report",
+            session_id: sessionId,
+            progress: { current: state.questions.length, total: state.questions.length }
+          });
+          generateReport(ws, sessionId).catch(e => log.error("WS", `Report failed: ${e.message}`));
+       } else {
+          // Staying on the same question
+          state.phase = "questioning"; 
+          sendToClient(ws, {
+             type: "ai_message",
+             text: evaluation.ai_response,
+             phase: "questioning",
+             session_id: sessionId,
+             progress: { current: idx + 1, total: state.questions.length },
+             question
+          });
+       }
     } else {
        // --- Standard Feedback Flow ---
        const allowFollowup = state.follow_up_count < 1;

@@ -8,7 +8,7 @@ import { useAuth } from '@clerk/clerk-react';
  * @param {function} onAiMessage - callback when AI sends a spoken message (text)
  * @param {function} onInterviewComplete - callback when session reaches "report" phase
  */
-const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswerCorrected) => {
+const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswerCorrected, onSessionRestored) => {
   const [connectionState, setConnectionState] = useState('disconnected');
   const [progress, setProgress] = useState({ current: 0, total: 10 });
   const { getToken } = useAuth();
@@ -43,6 +43,12 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
           switch (data.type) {
             case 'session_ready':
               console.log('[WS] Session ready');
+              break;
+
+            case 'session_restored':
+              console.log('[WS] Session restored with history');
+              if (data.progress) setProgress(data.progress);
+              if (onSessionRestored) onSessionRestored(data.transcript, data.phase, data.question);
               break;
 
             case 'ai_message':
@@ -87,7 +93,7 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
       cancelled = true;
       wsRef.current?.close();
     };
-  }, [sessionId, getToken, onAiMessage, onInterviewComplete, onAnswerCorrected]);
+  }, [sessionId, getToken, onAiMessage, onInterviewComplete, onAnswerCorrected, onSessionRestored]);
 
   const sendAnswer = useCallback((answerText, codeContent = null, isFinalSubmission = false) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
