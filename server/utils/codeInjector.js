@@ -1,13 +1,15 @@
 const log = require("../utils/logger");
+//Its job is to take a user's snippet of code and turn it into a complete, runnable program that can handle inputs and outputs in multiple different programming languages (Python, JavaScript, Java, and C++).
 
 /**
  * Injects user code into a language-specific driver template.
  * The driver code is responsible for passing inputs to the user's function
  * and printing the serialized outputs as a JSON array string to stdout.
  */
+
 function injectCode(userCode, language, problemDetails, testCases) {
   log.info("INJECTOR", `Injecting user code for language: ${language}`);
-  
+
   if (!problemDetails) {
     throw new Error("Problem details are required for code injection.");
   }
@@ -16,6 +18,7 @@ function injectCode(userCode, language, problemDetails, testCases) {
   let method_name = problemDetails.method_name;
   const lang = language.toLowerCase();
 
+  //if ai didnt provide method name then create one from title(e.g., two_sum for Python or twoSum for Java)
   if (!method_name && problemDetails.title) {
     if (lang === "python") {
       method_name = problemDetails.title.toLowerCase().replace(/ /g, '_').replace(/[^a-z0-9_]/g, '');
@@ -27,7 +30,8 @@ function injectCode(userCode, language, problemDetails, testCases) {
   if (!method_name) method_name = 'solve';
 
   const parameters = problemDetails.parameters || [{ name: "input", type: "any" }];
-  
+
+  //If a test case is formatted like nums = [1,2], target = 9, the code uses a LeetCode-style heuristic to strip away the variable names and turn it into a clean JSON array: [[1,2], 9].
   // Parse and normalize test inputs
   const testCasesInputs = testCases.map(tc => {
     let raw = tc.input.trim();
@@ -67,7 +71,16 @@ function injectCode(userCode, language, problemDetails, testCases) {
     }
     return lang === 'c++' ? 'auto' : 'Object';
   };
-
+  /*Python & JavaScript (The Flexible Languages)
+  These are the easiest. Because they are dynamic, the code can simply use json.loads or JSON.parse to turn your test cases into real variables and use the "Spread Operator" (*args or ...args) to call the user's function.
+  
+  Java & C++ (The Strict Languages)
+  These are much harder. Since they are "Static" and "Compiled," you can't just pass JSON into them. This file actually writes a custom JSON parser inside the Java/C++ code!
+  
+  getType Helper: Maps generic types like "Integer Array" to language-specific types like int[] or std::vector<int>.
+  
+  Custom Parsers: It injects functions like splitTopLevelElements to manually traverse strings and build complex objects (like matrices or nested lists) without needing external libraries.
+  */
   if (language.toLowerCase() === "python") {
     return `
 import json
@@ -129,7 +142,7 @@ runTests();
   } else if (language.toLowerCase() === "java") {
     const returnType = getType(problemDetails.return_type, 'java');
     const javaParams = parameters.map(p => getType(p.type, 'java')).join(', ');
-    
+
     const paramParsing = parameters.map((p, idx) => {
       const javaType = getType(p.type, 'java');
       let parser = 'parseStringValue';
@@ -141,10 +154,10 @@ runTests();
       else if (javaType === 'String[]') parser = 'parseStringArrayValue';
       else if (javaType === 'int[][]') parser = 'parseIntMatrixValue';
       else if (javaType === 'String') parser = 'parseStringValue';
-      
+
       return `${javaType} ${p.name} = ${parser}(argsList.get(${idx}));`;
     }).join('\n                ');
-    
+
     const callArgs = parameters.map(p => p.name).join(', ');
 
     return `
@@ -271,7 +284,7 @@ public class Main {
 `;
   } else if (language.toLowerCase() === "c++") {
     const returnType = getType(problemDetails.return_type, 'c++');
-    
+
     const paramParsing = parameters.map((p, idx) => {
       const cppType = getType(p.type, 'c++');
       let parser = 'parseStringValue';
@@ -282,10 +295,10 @@ public class Main {
       else if (cppType === 'std::vector<int>') parser = 'parseVectorIntValue';
       else if (cppType === 'std::vector<std::string>') parser = 'parseVectorStringValue';
       else if (cppType === 'std::vector<std::vector<int>>') parser = 'parseVectorVectorIntValue';
-      
+
       return `const ${cppType} ${p.name} = ${parser}(args[${idx}]);`;
     }).join('\n              ');
-    
+
     const callArgs = parameters.map(p => p.name).join(', ');
 
     return `
@@ -515,7 +528,7 @@ int main() {
 }
 `;
   }
-  
+
   throw new Error("Unsupported language: " + language);
 }
 

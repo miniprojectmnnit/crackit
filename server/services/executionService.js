@@ -1,3 +1,4 @@
+//It links together every individual service we've discussed: it takes the raw user code, prepares it, sends it to the cloud to be executed, and then grades the results.
 const log = require("../utils/logger");
 const { getLanguageId, submitToJudge0 } = require("./judge0Service");
 const { injectCode } = require("../utils/codeInjector");
@@ -8,9 +9,9 @@ const { runComparisonEngine } = require("./comparisonService");
  */
 async function executeCodePipeline(userCode, language, questionDetails, testCases) {
   log.info("EXECUTION_ENGINE", `Starting execution pipeline for language: ${language}`);
-  
+
   if (!userCode || !language || !questionDetails) {
-      throw new Error("Missing required arguments for execution pipeline (userCode, language, questionDetails)");
+    throw new Error("Missing required arguments for execution pipeline (userCode, language, questionDetails)");
   }
 
   const languageId = getLanguageId(language);
@@ -25,16 +26,16 @@ async function executeCodePipeline(userCode, language, questionDetails, testCase
 
     // 2. Submit to Judge0
     const judge0Result = await submitToJudge0(runnableCode, languageId);
-    
+
     // Check if there was a compilation or execution error stopping the script entirely
     if (judge0Result.compile_output || judge0Result.stderr) {
-        log.warn("EXECUTION_ENGINE", `Judge0 Compilation/Execution Error: ${judge0Result.compile_output || judge0Result.stderr}`);
-        return {
-          passed: 0,
-          failed: testCases.length,
-          error: judge0Result.compile_output || judge0Result.stderr,
-          results: []
-        };
+      log.warn("EXECUTION_ENGINE", `Judge0 Compilation/Execution Error: ${judge0Result.compile_output || judge0Result.stderr}`);
+      return {
+        passed: 0,
+        failed: testCases.length,
+        error: judge0Result.compile_output || judge0Result.stderr,
+        results: []
+      };
     }
 
     if (!judge0Result.stdout) {
@@ -49,14 +50,14 @@ async function executeCodePipeline(userCode, language, questionDetails, testCase
 
     // 3. Run Deep Comparison Engine
     const finalResult = runComparisonEngine(testCases, judge0Result.stdout);
-    
+
     // Attach resource usage
     finalResult.time = judge0Result.time;
     finalResult.memory = judge0Result.memory;
 
     log.success("EXECUTION_ENGINE", `Pipeline finished. Passed: ${finalResult.passed}/${testCases.length}`);
     return finalResult;
-    
+
   } catch (error) {
     log.error("EXECUTION_ENGINE", `Pipeline error: ${error.message}`);
     return {

@@ -1,3 +1,5 @@
+//this one is responsible for grading it. It compares the user's output against the correct answer with extreme precision.
+
 const log = require("../utils/logger");
 
 /**
@@ -15,7 +17,7 @@ function deepCompare(actual, expected) {
   // Handle Primitives
   if (typeof actual !== "object" || actual === null || typeof expected !== "object" || expected === null) {
     if (actual === expected) return true;
-    
+
     // Sometimes boolean comes as string
     if (String(actual).toLowerCase() === String(expected).toLowerCase()) return true;
 
@@ -26,7 +28,7 @@ function deepCompare(actual, expected) {
   if (Array.isArray(actual) && Array.isArray(expected)) {
     if (actual.length !== expected.length) return false;
     for (let i = 0; i < actual.length; i++) {
-        if (!deepCompare(actual[i], expected[i])) return false;
+      if (!deepCompare(actual[i], expected[i])) return false;
     }
     return true;
   }
@@ -52,27 +54,28 @@ function deepCompare(actual, expected) {
  * Engine compares multiple test cases.
  * Outputs an array of results with passed statuses.
  */
+//This function takes the raw data back from the execution engine (like Judge0) and runs it through the grader.
 function runComparisonEngine(testCases, judge0StdoutData) {
   log.info("COMPARISON", `Running deep comparison engine for ${testCases.length} testcases`);
-  
+
   // judge0StdoutData is assumed to be a JSON array of outputs e.g. [{"output": 5}, {"output": 10}]
   let executionResults = [];
   try {
-      executionResults = JSON.parse(judge0StdoutData);
+    executionResults = JSON.parse(judge0StdoutData);
   } catch (e) {
-      log.error("COMPARISON", `Failed to parse Judge0 stdout: ${judge0StdoutData}`);
-      // return all failed
-      return {
-        passed: 0,
-        failed: testCases.length,
-        error: "Failed to parse JSON output from execution: " + e.message,
-        results: testCases.map(tc => ({
-          input: tc.input,
-          expected: tc.expected_output,
-          actual: null,
-          error: "Parse error"
-        }))
-      };
+    log.error("COMPARISON", `Failed to parse Judge0 stdout: ${judge0StdoutData}`);
+    // return all failed
+    return {
+      passed: 0,
+      failed: testCases.length,
+      error: "Failed to parse JSON output from execution: " + e.message,
+      results: testCases.map(tc => ({
+        input: tc.input,
+        expected: tc.expected_output,
+        actual: null,
+        error: "Parse error"
+      }))
+    };
   }
 
   let passed = 0;
@@ -82,7 +85,7 @@ function runComparisonEngine(testCases, judge0StdoutData) {
   for (let i = 0; i < testCases.length; i++) {
     const tc = testCases[i];
     const execRes = executionResults[i] || {};
-    
+
     // Parse expected output from string if it represents JSON
     let expectedParsed;
     try {

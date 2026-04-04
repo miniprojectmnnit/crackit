@@ -1,10 +1,12 @@
+//In a real-world coding interview app, users usually write their solutions using simple arrays (like [1, 2, 3]), but the computer needs to process them as complex structures (like Linked Lists or Trees) to test them. This file provides the "translation" logic to switch back and forth between those formats.
+
 /**
  * Node definition for a Singly Linked List
  */
 class ListNode {
   constructor(val = 0, next = null) {
-      this.val = val;
-      this.next = next;
+    this.val = val;
+    this.next = next;
   }
 }
 
@@ -13,9 +15,9 @@ class ListNode {
  */
 class TreeNode {
   constructor(val = 0, left = null, right = null) {
-      this.val = val;
-      this.left = left;
-      this.right = right;
+    this.val = val;
+    this.left = left;
+    this.right = right;
   }
 }
 
@@ -27,8 +29,8 @@ function arrayToList(arr) {
   const head = new ListNode(arr[0]);
   let current = head;
   for (let i = 1; i < arr.length; i++) {
-      current.next = new ListNode(arr[i]);
-      current = current.next;
+    current.next = new ListNode(arr[i]);
+    current = current.next;
   }
   return head;
 }
@@ -39,8 +41,8 @@ function arrayToList(arr) {
 function listToArray(head) {
   const result = [];
   while (head) {
-      result.push(head.val);
-      head = head.next;
+    result.push(head.val);
+    head = head.next;
   }
   return result;
 }
@@ -54,17 +56,17 @@ function arrayToTree(arr) {
   const queue = [root];
   let i = 1;
   while (i < arr.length) {
-      const current = queue.shift();
-      if (arr[i] !== null) {
-          current.left = new TreeNode(arr[i]);
-          queue.push(current.left);
-      }
-      i++;
-      if (i < arr.length && arr[i] !== null) {
-          current.right = new TreeNode(arr[i]);
-          queue.push(current.right);
-      }
-      i++;
+    const current = queue.shift();
+    if (arr[i] !== null) {
+      current.left = new TreeNode(arr[i]);
+      queue.push(current.left);
+    }
+    i++;
+    if (i < arr.length && arr[i] !== null) {
+      current.right = new TreeNode(arr[i]);
+      queue.push(current.right);
+    }
+    i++;
   }
   return root;
 }
@@ -77,18 +79,18 @@ function treeToArray(root) {
   const result = [];
   const queue = [root];
   while (queue.length > 0) {
-      const current = queue.shift();
-      if (current) {
-          result.push(current.val);
-          queue.push(current.left);
-          queue.push(current.right);
-      } else {
-          result.push(null);
-      }
+    const current = queue.shift();
+    if (current) {
+      result.push(current.val);
+      queue.push(current.left);
+      queue.push(current.right);
+    } else {
+      result.push(null);
+    }
   }
   // Trim trailing nulls
   while (result[result.length - 1] === null) {
-      result.pop();
+    result.pop();
   }
   return result;
 }

@@ -57,10 +57,10 @@ app.use(async (req, res, next) => {
 });
 
 // REST Routes
-app.use("/api/extract", require("./routes/extract"));
-app.use("/api/interviews", require("./routes/interview"));
-app.use("/api/resume", require("./routes/resumeRoutes"));
-app.use("/api/sessions", require("./routes/sessionRoutes"));
+app.use("/api/extract", require("./routes/extract")); //done
+app.use("/api/interviews", require("./routes/interview"));//done
+app.use("/api/resume", require("./routes/resumeRoutes"));//done
+app.use("/api/sessions", require("./routes/sessionRoutes"));//done
 app.use("/api/settings", require("./routes/settingsRoutes"));
 
 // Legacy fallbacks

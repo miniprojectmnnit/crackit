@@ -1,5 +1,6 @@
-import { useCallback } from "react";
-import { useAuth } from "@clerk/clerk-react";
+import { useCallback } from "react"; //hook that saves or memoize the function so that it does not get recreated on every render
+
+import { useAuth } from "@clerk/clerk-react"; //hook that provides access to the authentication state and methods
 
 export const useAuthFetch = () => {
   const { getToken } = useAuth();
@@ -7,7 +8,7 @@ export const useAuthFetch = () => {
   const authFetch = useCallback(async (url, options = {}) => {
     const token = await getToken();
     // console.log("[AUTH] Frontend Token exists");
-    
+
     const headers = {
       ...options.headers,
       Authorization: `Bearer ${token}`,
