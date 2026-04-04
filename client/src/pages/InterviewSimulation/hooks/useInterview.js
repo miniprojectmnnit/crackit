@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 import { toast } from "react-hot-toast";
 import { generateCodeTemplate } from '../../../lib/codeTemplate';
 import useGeminiVoice from './useGeminiVoice';
@@ -16,11 +17,15 @@ const DEFAULT_CODE = '// Write your solution here...';
  */
 export const useInterview = (initialSessionId) => {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [searchParams] = useSearchParams();
   const url = searchParams.get('url');
   const resumeId = searchParams.get('resumeId');
   const { speak, stop, isSpeaking, isConnected } = useGeminiVoice();
   const authFetch = useAuthFetch();
+
+  // Helper to get the correct user ID from Clerk with a fallback
+  const getUserId = () => user?.id || "mock_user_123";
 
   // Core state
   const [questions, setQuestions] = useState([]);
@@ -125,7 +130,7 @@ export const useInterview = (initialSessionId) => {
           source_url: url,
           resume_id: resumeId,
           question_count: 10,
-          user_id: localStorage.getItem("user_id") || "mock_user_123"
+          user_id: getUserId()
         })
       });
 
@@ -155,7 +160,7 @@ export const useInterview = (initialSessionId) => {
       //QUESTION- why returned session why not fetched question directly?
       //ANSWER-because when u created session it might not fully extracted the ques becuse it is very heavy task and without it ai may take long time to load but with this it create sessions and then later we can fetch questions
       console.log('[INTERVIEW] 📋 Fetching session questions...');
-      const objRes = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionResponse._id}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
+      const objRes = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionResponse._id}?user_id=${getUserId()}`, {
         headers: { 'Content-Type': 'application/json' }
       });
       if (!objRes.ok) {
@@ -189,7 +194,7 @@ export const useInterview = (initialSessionId) => {
     setLoading(true);
     console.log(`[INTERVIEW] 🚀 Loading existing session: ${sessionId}`);
     try {
-      const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionId}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
+      const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionId}?user_id=${getUserId()}`, {
         headers: { 'Content-Type': 'application/json' }
       });
       if (!res.ok) {
@@ -299,7 +304,7 @@ export const useInterview = (initialSessionId) => {
         body: JSON.stringify({
           question_id: questionToEval._id,
           answer: answerContent,
-          user_id: localStorage.getItem("user_id") || "mock_user_123"
+          user_id: getUserId()
         })
       });
       const data = await res.json();
@@ -353,7 +358,7 @@ export const useInterview = (initialSessionId) => {
       // The frontend will now navigate to InterviewReport.jsx and poll until this completes.
       if (sessionData && sessionData._id) {
         console.log('[INTERVIEW] 🚀 Sparking background report generation...');
-        authFetch(`${API_BASE_URL}/api/interviews/session/${sessionData._id}/report?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`)
+        authFetch(`${API_BASE_URL}/api/interviews/session/${sessionData._id}/report?user_id=${getUserId()}`)
           .catch(err => console.error('[INTERVIEW] ❌ Failed to dispatch report generation:', err));
       }
 
@@ -408,7 +413,7 @@ export const useInterview = (initialSessionId) => {
           question_id: currentQuestion._id,
           code,
           language,
-          user_id: localStorage.getItem("user_id") || "mock_user_123"
+          user_id: getUserId()
         })
       });
 
