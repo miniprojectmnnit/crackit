@@ -1,3 +1,5 @@
+//it is the central brain of your AI-led conversation. It uses LangGraph to manage the logic of a live interview, deciding when to ask a question, when to dig deeper with a follow-up, and when to wrap things up and issue a grade.
+
 const { Annotation, StateGraph, START, END } = require("@langchain/langgraph");
 const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const { z } = require("zod");
@@ -9,6 +11,10 @@ const ResumeProfile = require("../models/ResumeProfile");
 const log = require("../utils/logger");
 
 // ─── State Schema ───────────────────────────────────────────────────────────
+//This is the "Clipboard" that the AI carries throughout the interview. It stores:
+//Transcript: A running log of everything said by the candidate and the AI.
+//Progress: Which question number we are on (current_q_index).
+//Evaluation: The score and feedback for the last answer.
 
 const InterviewState = Annotation.Root({
   session_id: Annotation(),
@@ -134,6 +140,7 @@ async function evaluateNode(state) {
 
   log.info("GRAPH", `📊 evaluateNode — scoring answer for Q${idx + 1}...`);
 
+  //It ignores the very last entry in the transcript array (which is usually the current answer itself) to avoid confusing the AI with duplicate data before passing it in as "Previous Context."
   const transcriptContext = state.transcript
     .slice(0, -1) // Exclude the very last entry (which is the current answer)
     .map(t => `${t.role.toUpperCase()}: ${t.text}`)
@@ -184,6 +191,7 @@ Evaluate this answer.`]
   } catch (e) {
     log.error("GRAPH", `Evaluation failed: ${e.message}`);
     return {
+      //The system defaults to a neutral "Safe" state—giving a 50 score and a generic transition phrase to keep the conversation moving.
       evaluation: { score: 50, feedback: "I see — let's continue.", needs_followup: false, followup_question: null },
       phase: "evaluating",
       output_message: "I see — let's continue."

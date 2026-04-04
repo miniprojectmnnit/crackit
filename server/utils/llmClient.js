@@ -10,7 +10,7 @@ const requestContext = require("./requestContext");
 function getLLM(options = {}) {
   const { temperature = 0.2, model = "llama-3.3-70b-versatile", apiKey: manualKey } = options;
   const ctx = requestContext.getStore() || {};
-  
+
   // Use manual key, then context keys, then process.env
   let keysToUse = [];
   if (manualKey) {
@@ -20,7 +20,7 @@ function getLLM(options = {}) {
   } else {
     keysToUse = [process.env.GROQ_API_KEY].filter(Boolean);
   }
-  
+
   if (keysToUse.length === 0) {
     log.error("LLM", `❌ No keys available for model ${model}. Dynamic keys count: ${ctx.apiKeys?.length || 0}, Env key present: ${!!process.env.GROQ_API_KEY}`);
     return new ChatGroq({
@@ -45,14 +45,14 @@ function getLLM(options = {}) {
 
   // If there are multiple keys, setup Langchain fallbacks
   if (models.length > 1) {
-    const fallbackRunnable = primaryModel.withFallbacks({ 
-      fallbacks: models.slice(1) 
+    const fallbackRunnable = primaryModel.withFallbacks({
+      fallbacks: models.slice(1)
     });
 
     // Patch withStructuredOutput to apply the schema to all underlying models
     // before wrapping them back in a fallback runnable. This prevents breaking
     // the .withStructuredOutput() calls used across all agent files.
-    fallbackRunnable.withStructuredOutput = function(schema, config) {
+    fallbackRunnable.withStructuredOutput = function (schema, config) {
       const primaryStructured = primaryModel.withStructuredOutput(schema, config);
       const fallbackStructured = models.slice(1).map(m => m.withStructuredOutput(schema, config));
       return primaryStructured.withFallbacks({ fallbacks: fallbackStructured });

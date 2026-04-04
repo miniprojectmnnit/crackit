@@ -67,8 +67,9 @@ export const useInterview = (initialSessionId) => {
   const currentQuestion = questions[currentIndex];
 
   // --- DEBOUNCED mic start: wait for isSpeaking to stay false for 1.2s ---
+  //Its main job is to prevent a very annoying feedback loop: it makes sure the app doesn't record the AI's own voice as the user's answer.
   useEffect(() => {
-    // Clear any pending mic start timer
+    //Every time the AI starts or stops speaking, we cancel any existing timers. This prevents "Ghost" timers from turning the mic on at the wrong time.
     if (micTimerRef.current) {
       clearTimeout(micTimerRef.current);
       micTimerRef.current = null;
@@ -89,6 +90,7 @@ export const useInterview = (initialSessionId) => {
           startListening();
         }
       }, 1200);
+      //Why the wait? Sometimes the AI takes a tiny breath between sentences, or there’s a bit of echo in the room. This 1.2s "buffer" ensures the room is actually quiet before we start recording the user.
     }
 
     return () => {
@@ -99,6 +101,7 @@ export const useInterview = (initialSessionId) => {
   }, [isSpeaking]);
 
   // --- Initialization ---
+  //ts job is to decide whether it needs to create a brand-new interview or resume an existing one the moment the page loads.
   useEffect(() => {
     if (initialSessionId) {
       loadSession(initialSessionId);
@@ -115,10 +118,10 @@ export const useInterview = (initialSessionId) => {
       console.log('[INTERVIEW] 📋 Creating session...');
       const res = await authFetch(`${API_BASE_URL}/api/interviews/session`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           source_url: url,
           resume_id: resumeId,
           question_count: 10,
@@ -148,6 +151,9 @@ export const useInterview = (initialSessionId) => {
       // Actually, we need to adapt here: When using resume_id, createSession generates questions
       //, but the return doesn't return the populated questions directly, it returns the session.
       // So let's fetch session with populated questions from getSession to be sure.
+
+      //QUESTION- why returned session why not fetched question directly?
+      //ANSWER-because when u created session it might not fully extracted the ques becuse it is very heavy task and without it ai may take long time to load but with this it create sessions and then later we can fetch questions
       console.log('[INTERVIEW] 📋 Fetching session questions...');
       const objRes = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionResponse._id}?user_id=${localStorage.getItem("user_id") || "mock_user_123"}`, {
         headers: { 'Content-Type': 'application/json' }
@@ -157,14 +163,14 @@ export const useInterview = (initialSessionId) => {
         setLoading(false);
         return;
       }
-
+      //this is done to get the populated questions
       const sessionPopulated = await objRes.json();
       const populatedQuestions = sessionPopulated.questions.map(q => q.question_id || {
         _id: q._id,
         question_text: q.text,
         type: 'General'
       });
-      
+
       setQuestions(populatedQuestions);
       console.log(`[INTERVIEW] ✅ Loaded ${populatedQuestions.length} questions`);
       populatedQuestions.forEach((q, i) => {
@@ -178,6 +184,7 @@ export const useInterview = (initialSessionId) => {
     console.log('[INTERVIEW] 🏁 Interview initialization complete');
   };
 
+  //it is designed to pull an existing interview out of the database so a user can continue exactly where they left off.
   const loadSession = async (sessionId) => {
     setLoading(true);
     console.log(`[INTERVIEW] 🚀 Loading existing session: ${sessionId}`);
@@ -207,31 +214,32 @@ export const useInterview = (initialSessionId) => {
     console.log('[INTERVIEW] 🏁 Session loading complete');
   };
 
-  // --- Setup code template & TTS when question changes ---
+  //It watches for the exact moment the question changes and prepares everything—the audio, the text state, and the code editor—so the user has a seamless transition to the next task.
   useEffect(() => {
     if (currentQuestion) {
       if (lastSpokenQuestionRef.current !== currentQuestion._id) {
         lastSpokenQuestionRef.current = currentQuestion._id;
-        
+
         console.log(`[INTERVIEW] 📝 Question ${currentIndex + 1}/${questions.length} — [${currentQuestion?.type}] "${currentQuestion?.question_text?.substring(0, 60)}..."`);
 
         // Stop any ongoing mic before AI speaks new question
         stopListening();
         resetTranscript();
         setAnswer('');
-
+        //Adds the AI's question to the chat log so the user can read it if they didn't hear it clearly.
         setConversationHistory(prev => [...prev, { role: 'ai', text: currentQuestion.question_text }]);
+        //Triggers the Text-to-Speech (TTS) engine. The AI physically "asks" the question out loud.
         speak(currentQuestion?.question_text || "");
-
+        //Checks if the question is a Coding challenge.
         if (currentQuestion.type === 'Coding') {
           console.log('[INTERVIEW] 💻 Setup code state for new coding question');
           const qId = currentQuestion._id || currentQuestion.question_id;
           const storageKey = `crackit_code_${sessionData?._id}_${sessionData?.round_type || 'general'}_${qId}_${language}`;
           const savedCode = localStorage.getItem(storageKey);
           if (savedCode) {
-             setCode(savedCode);
+            setCode(savedCode);
           } else {
-             setCode(generateCodeTemplate(currentQuestion, language));
+            setCode(generateCodeTemplate(currentQuestion, language));
           }
         } else {
           setCode(DEFAULT_CODE);
@@ -243,6 +251,8 @@ export const useInterview = (initialSessionId) => {
   // Local Storage Recovery for Language Changes
   const lastLanguageRef = useRef(language);
 
+  //Its specific job is to handle what happens when a user changes the programming language (e.g., switching from JavaScript to Python) while working on a coding question.
+  //Without this, if you switched languages, you might see JavaScript code being highlighted as if it were Python, or worse, you'd lose all the work you just did in the previous language.
   useEffect(() => {
     if (currentQuestion && currentQuestion.type === 'Coding') {
       const qId = currentQuestion._id || currentQuestion.question_id;
@@ -253,9 +263,9 @@ export const useInterview = (initialSessionId) => {
         const savedCode = localStorage.getItem(storageKey);
 
         if (savedCode) {
-            setCode(savedCode);
+          setCode(savedCode);
         } else {
-            setCode(generateCodeTemplate(currentQuestion, language));
+          setCode(generateCodeTemplate(currentQuestion, language));
         }
         lastLanguageRef.current = language;
       }
@@ -272,6 +282,7 @@ export const useInterview = (initialSessionId) => {
   }, [code, currentQuestion, language, sessionData]);
 
   // --- Internal submit function (used by handleNext too) ---
+  //It is responsible for taking whatever the user just provided—be it a spoken answer or a block of code—and sending it to the backend to be graded by the AI.
   const _submitAnswerInternal = async (answerContent, questionToEval) => {
     if (!sessionData || !questionToEval || !answerContent || !answerContent.trim()) return null;
 
@@ -282,7 +293,7 @@ export const useInterview = (initialSessionId) => {
       setConversationHistory(prev => [...prev, { role: 'user', text: answerContent }]);
       const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionData._id}/evaluate`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -302,6 +313,7 @@ export const useInterview = (initialSessionId) => {
   };
 
   // --- Navigation (auto-submits if there's an answer) ---
+  //It handles the logic for when a user clicks the "Next" button. It isn't just a simple page-turner; it acts as a safety net to ensure no answer is lost and handles the transition from the "Interview" phase to the "Reporting" phase.
   const handleNext = async () => {
     stop();
     stopListening();
@@ -336,7 +348,7 @@ export const useInterview = (initialSessionId) => {
       setCode(DEFAULT_CODE);
     } else {
       console.log('[INTERVIEW] 🏁 Interview finished — all questions completed');
-      
+
       // Dispatch the report generation API call in the background!
       // The frontend will now navigate to InterviewReport.jsx and poll until this completes.
       if (sessionData && sessionData._id) {
@@ -350,6 +362,7 @@ export const useInterview = (initialSessionId) => {
   };
 
   // --- Explicit Answer Submission ---
+  //This function is what handles the active dialogue between the user and the AI mentor during a single question.
   const submitAnswer = async () => {
     if (!sessionData || !currentQuestion) return;
     stopListening();
@@ -380,6 +393,7 @@ export const useInterview = (initialSessionId) => {
   };
 
   // --- Code Execution ---
+  //asks the AI to judge your code, runCode asks the server to actually compile and execute it against real test cases.
   const runCode = async () => {
     if (!sessionData || !currentQuestion) return;
     setIsEvaluating(true);
@@ -387,7 +401,7 @@ export const useInterview = (initialSessionId) => {
     try {
       const res = await authFetch(`${API_BASE_URL}/api/interviews/session/${sessionData._id}/execute`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

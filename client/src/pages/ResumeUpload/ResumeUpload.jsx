@@ -69,13 +69,13 @@ const ResumeUpload = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [resumeData, setResumeData] = useState(null);
   const [error, setError] = useState(null);
-  
+
   // Unified Context State
-  const [context, setContext] = useState({ 
-    company: '', 
-    role: '', 
-    experience: '', 
-    focusArea: '' 
+  const [context, setContext] = useState({
+    company: '',
+    role: '',
+    experience: '',
+    focusArea: ''
   });
   const [startingRound, setStartingRound] = useState(null);
   const navigate = useNavigate();
@@ -103,30 +103,30 @@ const ResumeUpload = () => {
   const handleContextChange = (e) => {
     setContext(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
-
+  //Its purpose is to take the file the user selected, send it to your server, and then update the UI with the AI-parsed results.
   const handleSubmitSetup = async () => {
     if (!file) {
       setError("Please upload your resume to proceed.");
       return;
     }
-    
+
     setIsProcessing(true);
     setError(null);
     const formData = new FormData();
     formData.append("resume", file);
-    
+
     // We implicitly hold the context in state
-    
+
     try {
-      const res = await authFetch(`${API_BASE_URL}/api/resume/upload`, { 
-        method: "POST", 
-        body: formData 
+      const res = await authFetch(`${API_BASE_URL}/api/resume/upload`, {
+        method: "POST",
+        body: formData
       });
       if (!res.ok) throw new Error("Failed to process resume");
-      
+
       const parsedData = await res.json();
       setResumeData(parsedData);
-      
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setError(err.message || "An error occurred during upload.");
@@ -135,6 +135,7 @@ const ResumeUpload = () => {
     }
   };
 
+  //initialize a session and then move the user into the actual interview room.
   const handleStartRound = async (roundId) => {
     if (!resumeData?._id) return;
     setStartingRound(roundId);
@@ -146,10 +147,10 @@ const ResumeUpload = () => {
         body: JSON.stringify({
           resume_id: resumeData._id,
           round_type: roundId,
-          context: context 
+          context: context
         })
       });
-      
+
       if (!res.ok) throw new Error("Failed to create session");
       const { session_id } = await res.json();
       navigate(`/interview-room/${session_id}`);
@@ -161,7 +162,7 @@ const ResumeUpload = () => {
 
   return (
     <div className="min-h-screen bg-[#07090E] text-slate-200 p-6 md:p-12 font-sans relative overflow-hidden flex flex-col items-center">
-      
+
       {/* Dynamic Background Effect */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-900/15 rounded-full blur-[120px] pointer-events-none" />
@@ -172,45 +173,45 @@ const ResumeUpload = () => {
           <Sparkles size={16} className="text-indigo-400 animate-pulse" />
           <span>CrackIt Autonomous Interview Platform</span>
         </div>
-        
+
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6">
           <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
             {resumeData ? "Select Interview Round" : "Configure Your Virtual Interview"}
           </span>
         </h1>
         <p className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed font-light">
-          {resumeData 
-            ? "Your profile is loaded and the AI is prepped. Choose which round you'd like to simulate today." 
+          {resumeData
+            ? "Your profile is loaded and the AI is prepped. Choose which round you'd like to simulate today."
             : "Upload your resume and provide target details so our AI interviewer can precisely tailor the questions to your career goals."}
         </p>
       </div>
 
       <div className="w-full max-w-6xl relative z-10">
-        
+
         {/* Error Alert */}
         {error && (
           <div className="mb-8 animate-in slide-in-from-top-4 fade-in duration-300 bg-red-950/40 border-l-4 border-red-500 p-5 rounded-r-xl shadow-lg backdrop-blur-sm flex items-start gap-4">
-             <div className="p-1.5 bg-red-500/20 rounded-full">
-               <Cpu size={20} className="text-red-400" />
-             </div>
-             <div>
-               <h3 className="text-red-300 font-semibold md:text-lg mb-1">Configuration Error</h3>
-               <p className="text-red-400/80 text-sm">{error}</p>
-             </div>
+            <div className="p-1.5 bg-red-500/20 rounded-full">
+              <Cpu size={20} className="text-red-400" />
+            </div>
+            <div>
+              <h3 className="text-red-300 font-semibold md:text-lg mb-1">Configuration Error</h3>
+              <p className="text-red-400/80 text-sm">{error}</p>
+            </div>
           </div>
         )}
 
         {/* ── STAGE 1: UNIFIED SETUP DASHBOARD ────────────────────────────────────────── */}
         {!resumeData ? (
           <div className="grid lg:grid-cols-2 gap-8 animate-in fade-in zoom-in-95 duration-500">
-            
+
             {/* L-Column: Target Context Form */}
             <div className="bg-[#0D1017]/80 backdrop-blur-2xl border border-white/5 shadow-2xl rounded-3xl p-8 md:p-10 flex flex-col h-full transform transition-all hover:bg-[#11141D]/90">
               <div className="flex items-center gap-3 mb-8">
                 <Target size={28} className="text-blue-500" />
                 <h2 className="text-2xl font-bold tracking-tight text-white">Target Details</h2>
               </div>
-              
+
               <div className="space-y-6 flex-1">
                 <div>
                   <label className="block text-sm font-medium text-slate-400 mb-2 pl-1">Target Company</label>
@@ -232,7 +233,7 @@ const ResumeUpload = () => {
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                         <path d="m6 9 6 6 6-6"/>
+                        <path d="m6 9 6 6 6-6" />
                       </svg>
                     </div>
                   </div>
@@ -283,37 +284,35 @@ const ResumeUpload = () => {
 
             {/* R-Column: Resume Upload & Submit Action */}
             <div className="flex flex-col gap-6 h-full">
-              
-              <div 
-                className={`bg-[#0D1017]/80 backdrop-blur-2xl border-2 border-dashed shadow-2xl rounded-3xl p-8 md:p-12 flex-1 flex flex-col items-center justify-center transition-all duration-300 relative group overflow-hidden cursor-pointer ${
-                  file ? 'border-indigo-500/50 bg-indigo-950/10' : 'border-slate-800 hover:border-indigo-500/60 hover:bg-[#11141D]'
-                }`}
+
+              <div
+                className={`bg-[#0D1017]/80 backdrop-blur-2xl border-2 border-dashed shadow-2xl rounded-3xl p-8 md:p-12 flex-1 flex flex-col items-center justify-center transition-all duration-300 relative group overflow-hidden cursor-pointer ${file ? 'border-indigo-500/50 bg-indigo-950/10' : 'border-slate-800 hover:border-indigo-500/60 hover:bg-[#11141D]'
+                  }`}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 onClick={() => document.getElementById('resume-upload').click()}
               >
                 {/* Background glow on hover */}
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                
-                <input 
-                  type="file" 
-                  id="resume-upload" 
-                  className="hidden" 
-                  accept=".pdf,.txt" 
-                  onChange={handleFileChange} 
+
+                <input
+                  type="file"
+                  id="resume-upload"
+                  className="hidden"
+                  accept=".pdf,.txt"
+                  onChange={handleFileChange}
                 />
-                
-                <div className={`p-5 rounded-2xl mb-6 shadow-xl transition-all duration-300 ${
-                  file ? 'bg-indigo-600 shadow-indigo-500/30' : 'bg-slate-800/80 group-hover:bg-indigo-600 group-hover:shadow-indigo-500/30'
-                }`}>
+
+                <div className={`p-5 rounded-2xl mb-6 shadow-xl transition-all duration-300 ${file ? 'bg-indigo-600 shadow-indigo-500/30' : 'bg-slate-800/80 group-hover:bg-indigo-600 group-hover:shadow-indigo-500/30'
+                  }`}>
                   <Upload size={40} className={`transition-colors ${file ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
                 </div>
-                
+
                 {file ? (
                   <div className="text-center z-10 w-full px-4">
                     <p className="text-2xl font-bold text-white mb-2 tracking-tight truncate">{file.name}</p>
                     <div className="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-sm font-medium">
-                       <CheckCircle size={14} /> Ready to analyze ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                      <CheckCircle size={14} /> Ready to analyze ({(file.size / 1024 / 1024).toFixed(2)} MB)
                     </div>
                   </div>
                 ) : (
@@ -321,8 +320,8 @@ const ResumeUpload = () => {
                     <p className="text-2xl font-bold text-slate-200 mb-3 tracking-tight">Drop your resume here</p>
                     <p className="text-slate-500 text-sm font-medium">or click to browse from device</p>
                     <div className="mt-6 flex justify-center gap-3">
-                       <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-md">PDF</span>
-                       <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-md">TXT</span>
+                      <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-md">PDF</span>
+                      <span className="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-md">TXT</span>
                     </div>
                   </div>
                 )}
@@ -331,11 +330,10 @@ const ResumeUpload = () => {
               <button
                 onClick={handleSubmitSetup}
                 disabled={!file || isProcessing}
-                className={`w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all duration-300 shadow-xl ${
-                  !file || isProcessing
-                    ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed border border-white/5'
-                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-indigo-600/25 hover:scale-[1.02] border border-white/10 cursor-pointer'
-                }`}
+                className={`w-full py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all duration-300 shadow-xl ${!file || isProcessing
+                  ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed border border-white/5'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-indigo-600/25 hover:scale-[1.02] border border-white/10 cursor-pointer'
+                  }`}
               >
                 {isProcessing ? (
                   <><Loader2 className="animate-spin" size={24} /> Analyzing Profile & Syncing Context...</>
@@ -377,7 +375,7 @@ const ResumeUpload = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   {/* Context info with icons */}
                   <div className="flex flex-col items-start gap-2.5 text-sm">
                     <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-sm px-4 py-2.5 rounded-xl border border-white/[0.06] hover:border-white/[0.12] transition-colors duration-300">
@@ -430,7 +428,7 @@ const ResumeUpload = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* ── Key Projects Panel ── */}
                   <div className="group relative rounded-2xl overflow-hidden">
                     {/* Panel gradient border */}
@@ -529,24 +527,24 @@ const ResumeUpload = () => {
 
                     <div className="flex flex-col h-full relative z-10 w-full">
                       <div className="flex items-center justify-between mb-6">
-                         {/* ── Glowing icon container ── */}
-                         <div className={`relative p-4 rounded-2xl bg-black/50 border border-white/[0.06] group-hover:border-white/[0.12] transition-all duration-500 flex-shrink-0 ${round.iconColor}`}>
-                            {/* Icon glow halo */}
-                            <div
-                              className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                              style={{
-                                boxShadow: round.id === 'dsa' ? '0 0 24px rgba(6,182,212,0.2)' : round.id === 'resume' ? '0 0 24px rgba(99,102,241,0.2)' : round.id === 'system_design' ? '0 0 24px rgba(245,158,11,0.2)' : '0 0 24px rgba(16,185,129,0.2)',
-                              }}
-                            />
-                            {isLoading ? <Loader2 size={28} className="animate-spin relative z-10" /> : <Icon size={28} className="relative z-10 group-hover:scale-110 transition-transform duration-300" />}
-                         </div>
+                        {/* ── Glowing icon container ── */}
+                        <div className={`relative p-4 rounded-2xl bg-black/50 border border-white/[0.06] group-hover:border-white/[0.12] transition-all duration-500 flex-shrink-0 ${round.iconColor}`}>
+                          {/* Icon glow halo */}
+                          <div
+                            className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                            style={{
+                              boxShadow: round.id === 'dsa' ? '0 0 24px rgba(6,182,212,0.2)' : round.id === 'resume' ? '0 0 24px rgba(99,102,241,0.2)' : round.id === 'system_design' ? '0 0 24px rgba(245,158,11,0.2)' : '0 0 24px rgba(16,185,129,0.2)',
+                            }}
+                          />
+                          {isLoading ? <Loader2 size={28} className="animate-spin relative z-10" /> : <Icon size={28} className="relative z-10 group-hover:scale-110 transition-transform duration-300" />}
+                        </div>
 
-                         {/* ── Animated badge ── */}
-                         <span className={`text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full ${round.badge} flex-shrink-0 ml-2 group-hover:scale-105 transition-transform duration-300`}>
-                            {round.badgeText}
-                         </span>
+                        {/* ── Animated badge ── */}
+                        <span className={`text-xs font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full ${round.badge} flex-shrink-0 ml-2 group-hover:scale-105 transition-transform duration-300`}>
+                          {round.badgeText}
+                        </span>
                       </div>
-                      
+
                       <div className="flex-1">
                         <h3 className="text-2xl font-bold text-white tracking-tight mb-2 group-hover:translate-x-1.5 transition-transform duration-300">{round.title}</h3>
                         <p className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide group-hover:text-slate-300 transition-colors duration-300">{round.subtitle}</p>
@@ -555,24 +553,24 @@ const ResumeUpload = () => {
 
                       {isLoading ? (
                         <div className="mt-8 flex flex-col gap-3">
-                           <div className="flex items-center justify-between text-sm font-medium">
-                              <span className={round.iconColor}>Initializing session...</span>
-                              <span className="text-slate-500 animate-pulse">Wait</span>
-                           </div>
-                           <div className="h-1.5 w-full bg-black/50 rounded-full overflow-hidden">
-                              <div className={`h-full bg-gradient-to-r ${round.color} animate-[pulse_1.5s_ease-in-out_infinite] w-[80%] rounded-full`} />
-                           </div>
+                          <div className="flex items-center justify-between text-sm font-medium">
+                            <span className={round.iconColor}>Initializing session...</span>
+                            <span className="text-slate-500 animate-pulse">Wait</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-black/50 rounded-full overflow-hidden">
+                            <div className={`h-full bg-gradient-to-r ${round.color} animate-[pulse_1.5s_ease-in-out_infinite] w-[80%] rounded-full`} />
+                          </div>
                         </div>
                       ) : (
-                         <div className={`mt-8 flex items-center justify-between font-bold text-sm tracking-wide transition-all duration-500 ${round.iconColor}`}
-                           style={{ opacity: 0, transform: 'translateY(8px)' }}
-                         >
-                            <span className="group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 opacity-0 translate-y-2 flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full bg-gradient-to-r ${round.color} shadow-lg animate-pulse`} />
-                              Start This Round
-                            </span>
-                            <ArrowRight size={18} className="group-hover:translate-x-2 group-hover:opacity-100 opacity-0 transition-all duration-500 delay-100" />
-                         </div>
+                        <div className={`mt-8 flex items-center justify-between font-bold text-sm tracking-wide transition-all duration-500 ${round.iconColor}`}
+                          style={{ opacity: 0, transform: 'translateY(8px)' }}
+                        >
+                          <span className="group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500 opacity-0 translate-y-2 flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full bg-gradient-to-r ${round.color} shadow-lg animate-pulse`} />
+                            Start This Round
+                          </span>
+                          <ArrowRight size={18} className="group-hover:translate-x-2 group-hover:opacity-100 opacity-0 transition-all duration-500 delay-100" />
+                        </div>
                       )}
                     </div>
 
@@ -583,7 +581,7 @@ const ResumeUpload = () => {
               })}
             </div>
           </div>
-         )}
+        )}
       </div>
     </div>
   );

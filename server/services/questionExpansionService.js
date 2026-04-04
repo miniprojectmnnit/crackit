@@ -1,3 +1,5 @@
+//it uses langgraph that take a simple, raw interview question and expand it into a professional, LeetCode-style technical challenge.
+
 const { questionExpansionApp } = require("../graphs/questionExpansionGraph");
 const log = require("../utils/logger");
 
@@ -6,7 +8,7 @@ async function expandCodingQuestion(questionText) {
 
   try {
     const resultState = await questionExpansionApp.invoke({ questionText });
-    
+
     const problemDetails = resultState.problemDetails;
     const examples = resultState.examples;
     const test_cases = resultState.testCases;

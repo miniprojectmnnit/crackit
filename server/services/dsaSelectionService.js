@@ -10,20 +10,21 @@ const InterviewSession = require("../models/InterviewSession");
  * - Phase 1: Unsolved questions
  * - Phase 2: Weakness based strategy
  */
+
 exports.getSmartDSAQuestions = async (userId) => {
   // 1. Identify "Recently Asked Questions" (Cooldown - Last 3 sessions)
+  //It looks at the 3 most recent interview sessions for this specific user.
   const recentSessions = await InterviewSession.find({ userId })
     .sort({ createdAt: -1 })
     .limit(3)
     .select("questions.question_id");
-
-  const recentQuestionIds = recentSessions.flatMap(session => 
+  const recentQuestionIds = recentSessions.flatMap(session =>
     session.questions.map(q => q.question_id?.toString())
   ).filter(Boolean);
 
   const results = [];
   const difficulties = ["Easy", "Medium", "Hard"];
-
+  //The code runs a loop three times—once for Easy, once for Medium, and once for Hard.
   for (const diff of difficulties) {
     let question = null;
 
@@ -38,7 +39,8 @@ exports.getSmartDSAQuestions = async (userId) => {
       type: "Coding", // Only DSA/Coding questions
       _id: { $nin: [...recentQuestionIds, ...solvedIds] }
     }).sort({ createdAt: -1 }); // Pick newer ones first or random? Let's do random-ish by skipping
-    
+
+    //If it finds multiple new questions, it picks one randomly from a pool of 10 so the user’s curriculum feels organic.
     // If we have many, pick 1 randomly from a small pool
     if (unsolvedQuestion) {
       // For more randomness, we could use aggregate $sample, but findOne is simpler for now.
@@ -48,41 +50,44 @@ exports.getSmartDSAQuestions = async (userId) => {
         type: "Coding",
         _id: { $nin: [...recentQuestionIds, ...solvedIds] }
       }).limit(10);
-      
+
       if (pool.length > 0) {
         question = pool[Math.floor(Math.random() * pool.length)];
       }
     }
 
+    //If Phase 1 fails (meaning the user has already solved every question of that difficulty in your database), the code switches to a Priority Scoring system to find what they struggled with most.
     // --- Phase 2: Weakness Strategy (If Phase 1 fails or all solved) ---
     if (!question) {
-      const allDiffQuestions = await Question.find({ 
-        difficulty: diff, 
+      //
+      const allDiffQuestions = await Question.find({
+        difficulty: diff,
         type: "Coding",
-        _id: { $nin: recentQuestionIds } 
+        _id: { $nin: recentQuestionIds }
       });
 
       if (allDiffQuestions.length > 0) {
         // Fetch stats for these questions to calculate priority
         const questionIds = allDiffQuestions.map(q => q._id);
-        const stats = await UserQuestionStats.find({ 
-          userId, 
-          questionId: { $in: questionIds } 
+        const stats = await UserQuestionStats.find({
+          userId,
+          questionId: { $in: questionIds }
         });
 
         const statsMap = new Map(stats.map(s => [s.questionId.toString(), s]));
 
         // Calculate priority score for each
+        //It sorts all previously solved questions by this score and picks the one with the highest value
         const ranked = allDiffQuestions.map(q => {
           const s = statsMap.get(q._id.toString());
           let score = 0;
           if (s) {
             // priorityScore = (attempts * 10) + (avgTimeInMinutes) + (lastAttemptSolved ? 0 : 50)
-            const avgTime = s.timeTaken.length > 0 
-              ? s.timeTaken.reduce((a, b) => a + b, 0) / s.timeTaken.length 
+            const avgTime = s.timeTaken.length > 0
+              ? s.timeTaken.reduce((a, b) => a + b, 0) / s.timeTaken.length
               : 0;
             const avgTimeMin = avgTime / 60;
-            
+
             score = (s.attempts * 10) + avgTimeMin + (s.solved ? 0 : 50);
           } else {
             // No stats yet, but we're in Phase 2? 

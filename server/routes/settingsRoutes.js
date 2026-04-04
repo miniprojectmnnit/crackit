@@ -12,14 +12,14 @@ const getDecryptedKeys = async (userId) => {
   if (!decryptedStr) return [];
   try {
     return JSON.parse(decryptedStr);
-  } catch(e) { return []; }
+  } catch (e) { return []; }
 };
 
 // Helper to encrypt and save keys
 const saveEncryptedKeys = async (userId, keysArray) => {
   if (!keysArray || keysArray.length === 0) {
-     await UserSettings.findOneAndDelete({ clerkUserId: userId });
-     return;
+    await UserSettings.findOneAndDelete({ clerkUserId: userId });
+    return;
   }
   const { encryptedData, iv, authTag } = encrypt(JSON.stringify(keysArray));
   await UserSettings.findOneAndUpdate(
@@ -38,14 +38,14 @@ router.get("/keys", async (req, res) => {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     let keys = await getDecryptedKeys(userId);
-    
+
     // Fallback: If existing keys are just strings, convert them to objects
-    keys = keys.map((k, i) => typeof k === 'string' ? { name: `Legacy Key ${i+1}`, value: k } : k);
-    
+    keys = keys.map((k, i) => typeof k === 'string' ? { name: `Legacy Key ${i + 1}`, value: k } : k);
+
     const maskedKeys = keys.map(k => {
-       const v = k.value || "";
-       const masked = v.length > 8 ? `${v.substring(0, 4)}${'*'.repeat(16)}${v.slice(-4)}` : '***';
-       return { name: k.name, value: masked };
+      const v = k.value || "";
+      const masked = v.length > 8 ? `${v.substring(0, 4)}${'*'.repeat(16)}${v.slice(-4)}` : '***';
+      return { name: k.name, value: masked };
     });
 
     res.json({ keys: maskedKeys });
@@ -71,8 +71,8 @@ router.post("/keys", async (req, res) => {
     }
 
     let keys = await getDecryptedKeys(userId);
-    keys = keys.map((k, i) => typeof k === 'string' ? { name: `Legacy Key ${i+1}`, value: k } : k);
-    
+    keys = keys.map((k, i) => typeof k === 'string' ? { name: `Legacy Key ${i + 1}`, value: k } : k);
+
     const existingIndex = keys.findIndex(k => k.name === name);
     if (existingIndex >= 0) {
       keys[existingIndex].value = value;
@@ -100,8 +100,8 @@ router.delete("/keys/:name", async (req, res) => {
 
     const keyName = req.params.name;
     let keys = await getDecryptedKeys(userId);
-    keys = keys.map((k, i) => typeof k === 'string' ? { name: `Legacy Key ${i+1}`, value: k } : k);
-    
+    keys = keys.map((k, i) => typeof k === 'string' ? { name: `Legacy Key ${i + 1}`, value: k } : k);
+
     const updatedKeys = keys.filter(k => k.name !== keyName);
 
     await saveEncryptedKeys(userId, updatedKeys);

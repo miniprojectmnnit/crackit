@@ -16,7 +16,7 @@ exports.getQuestionsForUrl = async (req, res) => {
     const { url } = req.query;
     const { userId } = getAuth(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    
+
     log.info("INTERVIEW", `📋 Fetching questions for URL: ${url}`);
 
     if (!url) return res.status(400).json({ error: "URL is required" });
@@ -35,28 +35,29 @@ exports.getQuestionsForUrl = async (req, res) => {
   }
 };
 
+//create session via url or resume
 exports.createSession = async (req, res) => {
   try {
     const { source_url, resume_id, question_count = 10, context = {} } = req.body;
     const { userId } = getAuth(req);
-    
+
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     log.info("SESSION", `🆕 Creating interview session — user: ${userId}, url: ${source_url}, resume_id: ${resume_id}`);
-    
+
     let questions = [];
 
     if (resume_id) {
-       log.info("SESSION", `📄 Using Resume Profile to generate questions...`);
-       const resumeProfile = await ResumeProfile.findById(resume_id);
-       if (!resumeProfile) {
-         return res.status(404).json({ error: "Resume profile not found" });
-       }
-       // Generate custom questions
-       const questionTexts = await generateInterviewPlan(resumeProfile, question_count, context);
-       questions = questionTexts.map(text => ({ text }));
+      log.info("SESSION", `📄 Using Resume Profile to generate questions...`);
+      const resumeProfile = await ResumeProfile.findById(resume_id);
+      if (!resumeProfile) {
+        return res.status(404).json({ error: "Resume profile not found" });
+      }
+      // Generate custom questions
+      const questionTexts = await generateInterviewPlan(resumeProfile, question_count, context);
+      questions = questionTexts.map(text => ({ text }));
     } else if (source_url) {
       log.info("SESSION", `🌐 Fetching existing questions from URL: ${source_url}`);
       const page = await Page.findOne({ page_url: source_url });
@@ -87,6 +88,7 @@ exports.createSession = async (req, res) => {
   }
 };
 
+//it is the core logic for grading the answer
 exports.evaluateQuestion = async (req, res) => {
   try {
     const { id } = req.params;
@@ -102,10 +104,16 @@ exports.evaluateQuestion = async (req, res) => {
       return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     }
 
+    //It handles two different ways your app stores questions: as a permanent database record or as a temporary "on-the-fly" question created specifically for that session.
+
+    //It tries to find a document in your global Question collection using the ID provided.
     let question = await Question.findById(question_id);
     if (!question) {
+      //the code doesn't give up yet. It suspects this might be a Dynamic Question.
+
       log.warn("EVALUATE", `Question document not found: ${question_id}, checking session inline questions...`);
       // Fallback: check if the question_id matches an embedded text question in the session
+      //The Scenario: When your AI generates a unique question specifically for one user (based on their specific resume experience), that question might not be saved in the global database. Instead, it’s "Embedded" (hidden inside) the session object itself.
       const embeddedQuestion = session.questions.find(q => q._id && q._id.toString() === question_id);
       if (embeddedQuestion && embeddedQuestion.text) {
         question = {
@@ -129,6 +137,7 @@ exports.evaluateQuestion = async (req, res) => {
     }
 
     // Save to session
+    //ts job is to make sure the user's answer and the AI's score are saved in the database correctly, without creating duplicate entries.
     const existingQuestion = session.questions.find(q =>
       (q.question_id && q.question_id.toString() === question_id) ||
       (q._id && q._id.toString() === question_id)
@@ -154,8 +163,9 @@ exports.evaluateQuestion = async (req, res) => {
     session.total_score = totalScores / session.questions.length;
 
     await session.save();
-    
+
     // Domain Score Updating Layer
+    //Every time a user answers a question, the code updates their "Power Level" in specific technical domains
     if (session.resume_id && question.domain) {
       log.info("EVALUATE", `📈 Updating Domain Score for ${question.domain} in ResumeProfile`);
       const resume = await ResumeProfile.findById(session.resume_id);
@@ -168,8 +178,8 @@ exports.evaluateQuestion = async (req, res) => {
 
         // Apply reasoning bonus if applicable
         if (evaluation?.problem_solving >= 80) {
-           let logicScore = resume.domain_scores.get("Logical Reasoning") || 0;
-           resume.domain_scores.set("Logical Reasoning", Math.min(10, logicScore + 0.1));
+          let logicScore = resume.domain_scores.get("Logical Reasoning") || 0;
+          resume.domain_scores.set("Logical Reasoning", Math.min(10, logicScore + 0.1));
         }
 
         resume.domain_scores.set(question.domain, Math.min(10, currentScore + increment));
@@ -184,7 +194,7 @@ exports.evaluateQuestion = async (req, res) => {
     const { timeTaken = 0 } = req.body;
     await UserQuestionStats.findOneAndUpdate(
       { userId: authUserId, questionId: question_id },
-      { 
+      {
         $inc: { attempts: 1 },
         $push: { timeTaken: timeTaken },
         $set: { solved: evaluation?.correctness >= 80, lastAttemptedAt: new Date() }
@@ -228,7 +238,7 @@ exports.executeCodingAnswer = async (req, res) => {
     const isSolved = result.passed > 0 && result.failed === 0;
     await UserQuestionStats.findOneAndUpdate(
       { userId: authUserId, questionId: question_id },
-      { 
+      {
         $inc: { attempts: 1 },
         $push: { timeTaken: timeTaken },
         $set: { solved: isSolved, lastAttemptedAt: new Date() }
@@ -252,7 +262,7 @@ exports.getSession = async (req, res) => {
       log.warn("SESSION", `Session not found or forbidden: ${req.params.id}`);
       return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
     }
-    
+
     log.success("SESSION", `✅ Session retrieved — ${session.questions.length} questions, score: ${session.total_score || 'N/A'}`);
     res.json(session);
   } catch (err) {
@@ -265,7 +275,7 @@ exports.getReport = async (req, res) => {
   try {
     const { id } = req.params;
     log.info("REPORT", `📋 Generating report for session: ${id}`);
-    
+
     const session = await InterviewSession.findById(id);
     const { userId: authUserId } = getAuth(req);
     if (!session || session.userId !== authUserId) return res.status(session ? 403 : 404).json({ error: "Session not found or access denied" });
@@ -291,31 +301,32 @@ exports.getReport = async (req, res) => {
     log.error("REPORT", `Failed to generate report: ${err.message}`, err);
     // Revert phase on error if it was generating
     try {
-       const s = await InterviewSession.findById(req.params.id);
-       if(s && s.phase === "generating_report") {
-         s.phase = "initializing";
-         await s.save();
-       }
-    } catch(e) {}
+      const s = await InterviewSession.findById(req.params.id);
+      if (s && s.phase === "generating_report") {
+        s.phase = "initializing";
+        await s.save();
+      }
+    } catch (e) { }
     res.status(500).json({ error: "Server error" });
   }
 };
 
+//history page
 exports.getUserSessions = async (req, res) => {
   try {
     const { userId } = getAuth(req);
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     log.info("SESSION", `📋 Fetching interview history for auth user: ${userId}`);
-    
+
     // Find all sessions for the user, sort by newest first
     const sessions = await InterviewSession.find({ userId: userId })
       .sort({ createdAt: -1 })
       .populate({ path: "questions.question_id", model: "Question" })
       .populate({ path: "resume_id", model: "ResumeProfile" });
-      
+
     log.success("SESSION", `✅ Retrieved ${sessions.length} sessions for user ${userId}`);
     res.json(sessions);
   } catch (err) {
@@ -331,7 +342,7 @@ exports.getSmartDSAQuestions = async (req, res) => {
 
     log.info("DSA", `🎯 Selecting smart questions for user: ${userId}`);
     const questions = await getSmartDSAQuestions(userId);
-    
+
     log.success("DSA", `✅ Selected ${questions.length} questions for ${userId}`);
     res.json(questions);
   } catch (err) {
