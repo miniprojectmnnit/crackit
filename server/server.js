@@ -11,7 +11,16 @@ console.log("[ENV Check] CLERK_PUBLISHABLE_KEY exists:", !!process.env.CLERK_PUB
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
+// app.use(cors());
+app.use(cors({
+  origin: [
+    "https://crackit-interview.vercel.app", // Your Production Frontend
+    "http://localhost:5173",                // Your Local Development
+    "http://localhost:3000"                 // Optional: fallback local port
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true // Crucial if you ever use cookies or specific auth headers
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(clerkMiddleware({
