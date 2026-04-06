@@ -72,6 +72,9 @@ const Home = () => {
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
   const [apiKeysStatus, setApiKeysStatus] = useState('');
+  const [showValidationAlert, setShowValidationAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const apiKeySectionRef = React.useRef(null);
 
   const fetchKeys = async () => {
     try {
@@ -93,8 +96,11 @@ const Home = () => {
       navigate('/sign-in');
       return;
     }
-    if (!newKeyName.trim() || !newKeyValue.trim()) {
-      setApiKeysStatus('Name and Key Value are required.');
+    // Auto-generate name if not provided
+    const nameToSave = newKeyName.trim() || `Groq Key ${new Date().toLocaleDateString()}`;
+    
+    if (!newKeyValue.trim()) {
+      setApiKeysStatus('Key Value is required.');
       setTimeout(() => setApiKeysStatus(''), 4000);
       return;
     }
@@ -104,7 +110,7 @@ const Home = () => {
       const response = await authFetch(`${API_BASE_URL}/api/settings/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newKeyName.trim(), value: newKeyValue.trim() }),
+        body: JSON.stringify({ name: nameToSave, value: newKeyValue.trim() }),
       });
       if (response.ok) {
         setApiKeysStatus('Key securely saved!');
@@ -137,6 +143,25 @@ const Home = () => {
       setApiKeysStatus('Error deleting key.');
     }
   };
+  const handleStartInterview = () => {
+    // If user has keys in their wallet, proceed
+    if (keysList.length > 0 || (newKeyValue.trim().startsWith('gsk_'))) {
+      navigate("/resume-upload");
+      return;
+    }
+
+    // Otherwise, scroll to the API key section
+    apiKeySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    setAlertMessage("Please enter your Groq API key before starting the interview.");
+    setShowValidationAlert(true);
+    
+    // Auto-hide alert after 5 seconds
+    setTimeout(() => {
+      setShowValidationAlert(false);
+    }, 5000);
+  };
+
   // Removed redundant cards as they are already featured in Hero CTAs
 
   const steps = [
@@ -202,6 +227,32 @@ const Home = () => {
         className="absolute top-[40%] left-[30%] w-[30vw] h-[30vw] bg-[#f59e0b]/10 rounded-full blur-[150px] pointer-events-none"
       />
 
+      {/* ── Validation Alert Popup ── */}
+      {showValidationAlert && (
+        <motion.div
+          initial={{ opacity: 0, y: 100, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 100, scale: 0.9 }}
+          className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md"
+        >
+          <div className="bg-[#0f111a] border border-red-500/50 shadow-[0_0_40px_rgba(239,68,68,0.2)] p-4 rounded-2xl backdrop-blur-2xl flex items-center gap-4">
+            <div className="p-3 bg-red-500/20 rounded-xl">
+              <Key className="w-6 h-6 text-red-400 animate-pulse" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-white font-bold text-sm">Action Required</h4>
+              <p className="text-slate-400 text-xs leading-relaxed">{alertMessage}</p>
+            </div>
+            <button 
+              onClick={() => setShowValidationAlert(false)}
+              className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4 text-slate-500 rotate-45" />
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* ═══════════════════════════════════════════════
           HERO SECTION
       ═══════════════════════════════════════════════ */}
@@ -249,13 +300,159 @@ const Home = () => {
               that adapt to your resume, career goals, and skill level in real time.
             </motion.p>
 
+            {/* ── API KEY CONFIGURATION (MOVED ABOVE START BUTTON) ── */}
+            <section id="api-keys-section" ref={apiKeySectionRef} className="container mx-auto px-0 max-w-5xl relative z-10 mb-16 mt-12 text-left">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="bg-[#0f111a]/90 backdrop-blur-3xl p-8 md:p-12 rounded-[2.5rem] border border-cyan-500/30 shadow-[0_0_60px_rgba(0,212,255,0.1)] relative overflow-hidden"
+              >
+                {/* Background Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#00d4ff]/10 to-[#a855f7]/5 pointer-events-none" />
+                
+                <div className="relative z-10 flex flex-col lg:flex-row gap-12 items-start">
+                  
+                  {/* Left: How to get a key */}
+                  <div className="lg:w-3/5">
+                    <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 mb-6">
+                       <Zap className="w-4 h-4 text-amber-400" />
+                       <span className="text-xs font-bold tracking-widest text-amber-400 uppercase font-body">Pro Tip</span>
+                    </div>
+                    
+                    <h2 className="text-3xl md:text-4xl font-extrabold font-display text-white tracking-tight mb-4">
+                      Bring Your Own <span className="text-[#00d4ff]">API Keys</span>
+                    </h2>
+                    
+                    <p className="text-slate-400 text-base leading-relaxed mb-8 font-body font-light">
+                      Since CrackIt relies on powerful AI models with strict rate limits, you might occasionally face slowdowns or availability issues if our default quotas are exhausted. 
+                      You can prevent this by providing your own <span className="text-white font-medium">free Groq API keys</span> to serve as a robust fallback queue.
+                    </p>
+                    
+                    <div className="space-y-6">
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-cyan-400" />
+                        How to Get a Free Groq API Key:
+                      </h3>
+                      <ol className="space-y-4">
+                        {[
+                          { text: "Go to the Groq Cloud Console.", link: "https://console.groq.com/" },
+                          { text: "Sign up or log in to your free account." },
+                          { text: "Navigate to the API Keys section in the sidebar." },
+                          { text: "Click Create API Key, give it a name, and copy the secret key." },
+                          { text: "Paste it here! You can add multiple keys for maximum stability." }
+                        ].map((step, i) => (
+                          <li key={i} className="flex gap-4 text-base text-slate-400 items-start group">
+                            <span className="flex-shrink-0 w-7 h-7 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs mt-0.5">
+                              {i + 1}
+                            </span>
+                            <span className="leading-relaxed">
+                              {step.link ? (
+                                <>Go to the <a href={step.link} target="_blank" rel="noreferrer" className="text-[#00d4ff] hover:underline font-semibold decoration-cyan-500/30 underline-offset-4">Groq Cloud Console</a>.</>
+                              ) : step.text}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+
+                  {/* Right: The Form */}
+                  <div className="lg:w-2/5 flex flex-col w-full bg-white/[0.02] border border-white/5 p-6 md:p-8 rounded-3xl backdrop-blur-sm self-stretch">
+                    <div className="flex items-center justify-between mb-6">
+                      <label className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <Key className="w-4 h-4 text-cyan-400" />
+                        Secure Key Wallet
+                      </label>
+                      {keysList.length > 0 && (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Active
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Existing Keys List */}
+                    {isSignedIn && keysList.length > 0 && (
+                      <div className="flex flex-col gap-3 mb-6 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                        {keysList.map((keyObj, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-[#0A0D14] border border-white/5 px-4 py-3 rounded-xl hover:border-cyan-500/40 transition-all group">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400 font-bold text-xs group-hover:bg-cyan-500/20">
+                                {keyObj.name.substring(0, 1).toUpperCase()}
+                              </div>
+                              <div className="flex flex-col overflow-hidden text-left">
+                                <span className="text-xs font-bold text-slate-200 truncate">{keyObj.name}</span>
+                                <span className="text-[10px] text-slate-500 font-mono tracking-tighter truncate opacity-60">Masked for security</span>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => handleDeleteKey(keyObj.name)} 
+                              className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                              title="Delete Key"
+                            >
+                               <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add New Key Form */}
+                    <div className="flex flex-col gap-4 mb-6">
+                      <div className="space-y-2">
+                        <span className="text-xs uppercase font-bold text-slate-500 ml-1 tracking-wider">Label</span>
+                        <input
+                          type="text"
+                          placeholder="e.g. My Personal Key"
+                          value={newKeyName}
+                          onChange={(e) => setNewKeyName(e.target.value)}
+                          className="w-full bg-[#030508] text-cyan-50 rounded-xl p-4 border border-white/10 focus:outline-none focus:border-[#00d4ff] focus:ring-1 focus:ring-[#00d4ff] text-base transition-all placeholder:text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <span className="text-xs uppercase font-bold text-slate-500 ml-1 tracking-wider">API Key</span>
+                        <input
+                          type="password"
+                          placeholder="gsk_..."
+                          value={newKeyValue}
+                          onChange={(e) => setNewKeyValue(e.target.value)}
+                          className="w-full bg-[#030508] text-cyan-50 rounded-xl p-4 border border-white/10 focus:outline-none focus:border-[#00d4ff] focus:ring-1 focus:ring-[#00d4ff] font-mono text-base transition-all placeholder:text-slate-700"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleAddKey}
+                      disabled={isSignedIn && (!newKeyValue.trim() || apiKeysStatus === 'Saving...')}
+                      className="w-full py-5 rounded-xl font-bold text-base text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2 group relative overflow-hidden"
+                      style={{ 
+                        background: "linear-gradient(135deg, #00d4ff, #0066ff)",
+                        boxShadow: "0 6px 25px rgba(0,212,255,0.3)"
+                      }}
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        {apiKeysStatus === 'Saving...' ? 'Encrypting...' : (isSignedIn ? 'Add to Secure Wallet' : 'Sign In to Save')}
+                        {isSignedIn ? <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" /> : <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
+                      </span>
+                    </button>
+                    
+                    {apiKeysStatus && apiKeysStatus !== 'Saving...' && (
+                      <p className={`mt-4 text-xs font-bold text-center ${apiKeysStatus.includes('Error') || apiKeysStatus.includes('Failed') ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {apiKeysStatus}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </section>
+
             {/* CTA Buttons */}
             <motion.div
               variants={itemVariants}
               className="flex flex-col sm:flex-row items-center justify-center gap-5"
             >
               <motion.button
-                onClick={() => navigate("/resume-upload")}
+                onClick={handleStartInterview}
                 whileHover={{ scale: 1.03, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 className="group w-full sm:w-auto px-10 py-5 rounded-2xl font-bold text-lg text-white relative overflow-hidden transition-shadow duration-500"
@@ -286,120 +483,6 @@ const Home = () => {
 
         {/* Hero bottom gradient fade */}
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#030508] to-transparent pointer-events-none" />
-      </section>
-
-
-
-      {/* ═══════════════════════════════════════════════
-          API KEY CONFIGURATION
-      ═══════════════════════════════════════════════ */}
-      <section id="api-keys-section" className="container mx-auto px-6 max-w-5xl relative z-10 mb-32 mt-12">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          className="bg-[#0f111a] p-8 md:p-12 rounded-3xl border border-cyan-500/30 shadow-[0_0_40px_rgba(6,182,212,0.15)] relative overflow-hidden"
-        >
-          {/* Background Gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#00d4ff]/10 to-[#a855f7]/5 pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row gap-12 items-start">
-            
-            {/* Left: How to get a key */}
-            <div className="md:w-1/2">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 mb-6">
-                 <Zap className="w-4 h-4 text-amber-400" />
-                 <span className="text-xs font-bold tracking-widest text-amber-400 uppercase">Pro Tip</span>
-              </div>
-              <h2 className="text-3xl font-extrabold font-display text-white tracking-tight mb-4">
-                Bring Your Own <span className="text-[#00d4ff]">API Keys</span>
-              </h2>
-              <p className="text-slate-400 text-sm leading-relaxed mb-6 font-body">
-                Since CrackIt relies on powerful AI models with strict rate limits, you might occasionally face slowdowns or availability issues if our default quotas are exhausted. 
-                You can prevent this by providing your own free Groq API keys to serve as a robust fallback queue.
-              </p>
-              
-              <h3 className="text-lg font-bold text-white mb-3">How to Get a Free Groq API Key:</h3>
-              <ol className="list-decimal pl-5 text-sm text-slate-400 space-y-3">
-                <li>Go to the <a href="https://console.groq.com/" target="_blank" rel="noreferrer" className="text-[#00d4ff] hover:underline whitespace-nowrap font-medium">Groq Cloud Console</a>.</li>
-                <li>Sign up or log in to your free account.</li>
-                <li>Navigate to the <strong>API Keys</strong> section in the sidebar.</li>
-                <li>Click <strong>Create API Key</strong>, give it a name, and copy the secret key.</li>
-                <li>Paste it here! You can add multiple keys separated by commas or newlines.</li>
-              </ol>
-            </div>
-
-            {/* Right: The Form */}
-            <div className="md:w-1/2 flex flex-col w-full">
-              <label className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
-                Your Secure Key Wallet <span className="text-[10px] text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded-full">Zero-Knowledge Encrypted</span>
-              </label>
-              
-              {/* Existing Keys List */}
-              {isSignedIn && keysList.length > 0 && (
-                <div className="flex flex-col gap-3 mb-6 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                  {keysList.map((keyObj, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-[#0A0D14] border border-white/10 p-3 rounded-xl hover:border-cyan-500/30 transition-colors">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <Key className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-slate-200 truncate">{keyObj.name}</span>
-                          <span className="text-[10px] text-slate-500 font-mono tracking-widest">{keyObj.value}</span>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => handleDeleteKey(keyObj.name)}
-                        className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors flex-shrink-0"
-                      >
-                         <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add New Key Form */}
-              <div className="flex flex-col gap-3 mb-6">
-                <input
-                  type="text"
-                  placeholder="Key Name (e.g. Personal Project)"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  disabled={apiKeysStatus === 'Saving...'}
-                  className="w-full bg-[#0A0D14] text-cyan-50 rounded-xl p-3 border border-white/10 focus:outline-none focus:border-[#00d4ff] focus:ring-1 focus:ring-[#00d4ff] text-sm shadow-inner"
-                />
-                <input
-                  type="text"
-                  placeholder="Secret Key (gsk_...)"
-                  value={newKeyValue}
-                  onChange={(e) => setNewKeyValue(e.target.value)}
-                  disabled={apiKeysStatus === 'Saving...'}
-                  className="w-full bg-[#0A0D14] text-cyan-50 rounded-xl p-3 border border-white/10 focus:outline-none focus:border-[#00d4ff] focus:ring-1 focus:ring-[#00d4ff] font-mono text-sm shadow-inner"
-                />
-              </div>
-
-              <button
-                onClick={handleAddKey}
-                disabled={isSignedIn && (!newKeyName.trim() || !newKeyValue.trim() || apiKeysStatus === 'Saving...')}
-                className="w-full px-8 py-4 rounded-xl font-bold text-base text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
-                style={{
-                  background: "linear-gradient(135deg, #00d4ff, #0066ff)",
-                  boxShadow: "0 0 20px rgba(0,212,255,0.2)",
-                }}
-              >
-                {apiKeysStatus === 'Saving...' ? 'Saving...' : (isSignedIn ? 'Add to Secure Wallet' : 'Sign In to Save Keys')}
-                {isSignedIn ? <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" /> : <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
-              </button>
-              
-              {apiKeysStatus && apiKeysStatus !== 'Saving...' && (
-                <p className={`mt-4 text-sm font-medium text-center ${apiKeysStatus.includes('Error') || apiKeysStatus.includes('Failed') ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {apiKeysStatus}
-                </p>
-              )}
-            </div>
-            
-          </div>
-        </motion.div>
       </section>
 
       {/* ═══════════════════════════════════════════════
@@ -593,73 +676,7 @@ const Home = () => {
 
 
 
-      {/* ═══════════════════════════════════════════════
-          CTA BANNER
-      ═══════════════════════════════════════════════ */}
-      <section className="container mx-auto px-6 max-w-5xl relative z-10 mb-32">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="relative rounded-3xl overflow-hidden"
-        >
-          {/* Background */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(0,212,255,0.08) 0%, rgba(168,85,247,0.08) 50%, rgba(245,158,11,0.05) 100%)",
-            }}
-          />
-          <div className="absolute inset-0 border border-white/8 rounded-3xl" />
-
-          {/* Animated pulse */}
-          <motion.div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(0,212,255,0.15) 0%, transparent 70%)",
-            }}
-            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0.1, 0.3] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          />
-
-          <div className="relative z-10 py-16 md:py-20 px-8 md:px-16 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-            >
-              <CheckCircle2 className="w-10 h-10 text-[#00d4ff] mx-auto mb-6 opacity-60" />
-              <h2 className="text-3xl md:text-5xl font-extrabold font-display text-white tracking-tight mb-5">
-                Ready to <span className="text-[#00d4ff]">Crack</span> Your Next Interview?
-              </h2>
-              <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-10 font-body">
-                Join thousands of engineers who landed their dream roles using AI-powered preparation.
-              </p>
-              <motion.button
-                onClick={() => navigate("/resume-upload")}
-                whileHover={{ scale: 1.05, y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                className="px-12 py-5 rounded-2xl font-bold text-lg text-white font-display relative overflow-hidden group"
-                style={{
-                  background: "linear-gradient(135deg, #00d4ff, #a855f7)",
-                  boxShadow:
-                    "0 0 40px rgba(0,212,255,0.3), 0 0 80px rgba(168,85,247,0.15)",
-                }}
-              >
-                <span className="relative z-10 flex items-center gap-3">
-                  Begin Your Journey
-                  <Zap className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-[#a855f7] to-[#f59e0b] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              </motion.button>
-            </motion.div>
-          </div>
-        </motion.div>
-      </section>
+      {/* Redundant CTA BANNER removed */}
 
       {/* ═══════════════════════════════════════════════
           FOOTER
