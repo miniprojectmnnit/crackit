@@ -7,6 +7,7 @@ import {
 import { useAuthFetch } from '../../auth/useAuthFetch';
 import companyList from '../../data/companies.json';
 import { API_BASE_URL } from '../../config';
+import SearchableCompanySelect from '../../components/SearchableCompanySelect';
 
 // ── Round definitions ──────────────────────────────────────────────────────────
 const ROUNDS = [
@@ -215,28 +216,12 @@ const ResumeUpload = () => {
               <div className="space-y-6 flex-1">
                 <div>
                   <label className="block text-sm font-medium text-slate-400 mb-2 pl-1">Target Company</label>
-                  <div className="relative group">
-                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors z-10 pointer-events-none" size={18} />
-                    <select
-                      name="company"
-                      value={context.company}
-                      onChange={handleContextChange}
-                      className={`w-full bg-black/40 border border-slate-800 text-white rounded-xl py-3.5 pl-12 pr-10 appearance-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-inner cursor-pointer ${context.company ? 'text-white' : 'text-slate-500'}`}
-                      style={{ colorScheme: 'dark' }}
-                    >
-                      <option value="" disabled className="text-slate-500">Select Target Company</option>
-                      {companyList.map(comp => (
-                        <option key={comp} value={comp} className="bg-[#1D212F] text-slate-200">
-                          {comp}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </div>
-                  </div>
+                  <SearchableCompanySelect
+                    value={context.company}
+                    options={companyList}
+                    onChange={handleContextChange}
+                    placeholder="Select Target Company"
+                  />
                 </div>
 
                 <div>
