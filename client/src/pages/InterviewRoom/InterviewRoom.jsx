@@ -286,7 +286,7 @@ const InterviewRoom = () => {
   }, []);
 
   // WebSocket connection
-  const { connectionState, progress, sendAnswer, signalSpeechDone } = useInterviewSocket(
+  const { connectionState, progress, sendAnswer, signalSpeechDone, reconnect } = useInterviewSocket(
     sessionId,
     handleAiMessage,
     handleInterviewComplete,
@@ -407,11 +407,22 @@ const InterviewRoom = () => {
         </div>
 
         <div className="flex items-center gap-4 w-1/3 justify-end">
-          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full font-medium ${connectionState === 'connected' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' :
-            connectionState === 'connecting' ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'
-            }`}>
+          <div className={`flex items-center gap-2.5 text-xs px-3 py-1.5 rounded-full font-medium transition-all duration-300 ${
+            connectionState === 'connected' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' :
+            connectionState === 'connecting' ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-400' : 
+            'bg-red-500/10 border border-red-500/20 text-red-400'
+          }`}>
             <div className={`w-1.5 h-1.5 rounded-full ${connectionState === 'connected' ? 'bg-emerald-400' : connectionState === 'connecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-500'}`} />
             <span className="capitalize">{connectionState}</span>
+            {(connectionState === 'disconnected' || connectionState === 'error') && (
+              <button 
+                onClick={reconnect}
+                className="ml-1 px-2 py-0.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded text-[10px] uppercase font-bold tracking-tighter transition-colors"
+                title="Manually retry connection"
+              >
+                Reconnect
+              </button>
+            )}
           </div>
         </div>
       </header>

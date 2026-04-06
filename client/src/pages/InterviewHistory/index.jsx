@@ -109,10 +109,10 @@ const InterviewHistory = () => {
                   <div className="text-right">
                     <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Total Score</p>
                     <div className="flex items-baseline gap-1">
-                      <span className={`text-2xl font-bold ${(session.total_score || 0) >= 7 ? 'text-green-400' : (session.total_score || 0) >= 4 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      <span className={`text-2xl font-bold ${(session.total_score || 0) >= 70 ? 'text-green-400' : (session.total_score || 0) >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
                         {(session.total_score || 0).toFixed(1)}
                       </span>
-                      <span className="text-gray-500 text-sm">/ 10</span>
+                      <span className="text-gray-500 text-sm">/ 100</span>
                     </div>
                   </div>
                   
