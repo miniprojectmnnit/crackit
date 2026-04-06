@@ -3,6 +3,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const http = require("http");
 const { clerkMiddleware, getAuth } = require('@clerk/express');
+const jwt = require('jsonwebtoken');
 require("dotenv").config({ override: true });
 
 console.log("[ENV Check] CLERK_SECRET_KEY exists:", !!process.env.CLERK_SECRET_KEY);
@@ -40,20 +41,40 @@ const { decrypt } = require("./utils/cryptoUtils");
 app.use(async (req, res, next) => {
   let apiKeys = [];
   const auth = getAuth(req);
-  console.log(`[DEBUG-AUTH] ${req.method} ${req.url} | Auth Header: ${!!req.headers.authorization} | req.auth.userId: ${auth?.userId}`);
+  let userId = auth?.userId;
+
+  // If no Clerk session, check for Extension Token (Option 3 Bridge)
+  if (!userId && req.headers.authorization?.startsWith('Bearer ')) {
+    const token = req.headers.authorization.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, process.env.ENCRYPTION_SECRET);
+      if (decoded.userId) {
+        userId = decoded.userId;
+        // DO NOT overwrite req.auth (Clerk might use it as a function or Proxy)
+        // Instead, use a custom property for our bridge
+        req.extensionAuth = { userId }; 
+        console.log(`[DEBUG-AUTH] Extension Token verified for: ${userId}`);
+      }
+    } catch (err) {
+      // Don't fail yet, just log. Routes like /api/extract will handle 401 if still missing.
+      console.log(`[DEBUG-AUTH] Invalid Bearer token: ${err.message}`);
+    }
+  }
+
+  console.log(`[DEBUG-AUTH] ${req.method} ${req.url} | Auth: ${!!userId} | User: ${userId}`);
 
   try {
-    if (auth?.userId) {
-      const settings = await UserSettings.findOne({ clerkUserId: auth.userId });
+    if (userId) {
+      const settings = await UserSettings.findOne({ clerkUserId: userId });
       if (settings) {
-        console.log(`[WALLET] 📂 Found wallet for user: ${auth.userId}`);
+        console.log(`[WALLET] 📂 Found wallet for user: ${userId}`);
         const decryptedStr = decrypt(settings.encryptedKeys, settings.iv, settings.authTag);
         if (decryptedStr) {
           apiKeys = JSON.parse(decryptedStr);
           console.log(`[WALLET] ✅ Loaded ${apiKeys.length} keys from wallet.`);
         }
       } else {
-        console.log(`[WALLET] ❓ No wallet found in DB for user: ${auth.userId}`);
+        console.log(`[WALLET] ❓ No wallet found in DB for user: ${userId}`);
       }
     }
   } catch (e) {
@@ -66,6 +87,7 @@ app.use(async (req, res, next) => {
 });
 
 // REST Routes
+app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/extract", require("./routes/extract")); //done
 app.use("/api/interviews", require("./routes/interview"));//done
 app.use("/api/resume", require("./routes/resumeRoutes"));//done

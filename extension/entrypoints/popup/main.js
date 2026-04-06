@@ -7,14 +7,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   const questionsListEl = document.getElementById('questions-list');
   
   let currentQuestions = [];
+  const APP_BASE_URL = "https://crackit-interview.vercel.app";
+  // const APP_BASE_URL = "http://localhost:5173";
   
   // Get current active tab
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
-  if (!tab) return;
+  const mainActionsEl = document.getElementById('main-actions');
+  const linkContainerEl = document.getElementById('link-container');
+  const loginBtn = document.getElementById('login-btn');
   
+  // Check for extension token
+  const { extension_token } = await chrome.storage.local.get('extension_token');
+  
+  if (extension_token) {
+    mainActionsEl.style.display = 'block';
+    linkContainerEl.style.display = 'none';
+  } else {
+    mainActionsEl.style.display = 'none';
+    linkContainerEl.style.display = 'block';
+  }
+
+  loginBtn.addEventListener('click', () => {
+    const extensionId = chrome.runtime.id;
+    const authUrl = `${APP_BASE_URL}/extension-auth?extensionId=${extensionId}`;
+    chrome.tabs.create({ url: authUrl });
+  });
+
   extractBtn.addEventListener('click', async () => {
-    statusEl.textContent = 'Extracting...';
+    statusEl.innerHTML = '<span class="loading">Extraction in progress...</span>';
     extractBtn.disabled = true;
     
     try {
@@ -26,22 +47,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       if (response && response.success) {
         currentQuestions = response.questions;
-        statusEl.textContent = `Extracted ${currentQuestions.length} questions.`;
+        statusEl.textContent = `✅ Extracted ${currentQuestions.length} questions.`;
         renderQuestionList(currentQuestions, questionsListEl);
         if (currentQuestions.length > 0) {
           mockBtn.style.display = 'block';
         }
       } else {
-        statusEl.textContent = 'Failed: ' + (response?.error || 'Unknown error');
+        statusEl.innerHTML = `<span class="error">❌ Extraction failed: ${response?.error || 'Unknown error'}</span>`;
       }
     } catch (err) {
-      statusEl.textContent = 'Error: ' + err.message;
+      statusEl.innerHTML = `<span class="error">❌ Error: ${err.message}</span>`;
     } finally {
       extractBtn.disabled = false;
     }
   });
-  
-  const APP_BASE_URL = import.meta.env.VITE_APP_URL || 'http://localhost:5173';
   
   mockBtn.addEventListener('click', () => {
     chrome.tabs.create({

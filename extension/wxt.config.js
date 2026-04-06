@@ -10,6 +10,12 @@ export default defineConfig({
     version: "1.0.0",
     permissions: ["activeTab", "scripting", "storage"],
     host_permissions: ["https://*/*", "http://*/*"],
+    externally_connectable: {
+      matches: [
+        "https://crackit-interview.vercel.app/*",
+        "http://localhost:5173/*"
+      ]
+    },
   },
   action: {
     default_title: "AI Interview Extractor"

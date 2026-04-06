@@ -15,6 +15,7 @@ import { ApiKeyProvider } from "./auth/ApiKeyContext";
 import SignInPage from "./auth/SignInPage";
 import SignUpPage from "./auth/SignUpPage";
 import FeedbackPage from "./pages/FeedbackPage";
+import ExtensionAuth from "./pages/ExtensionAuth";
 
 const App = () => {
   return (
@@ -43,6 +44,9 @@ const App = () => {
 
             {/* Feedback Page */}
             <Route path="/feedback" element={<FeedbackPage />} />
+
+            {/* Extension Auth Bridge */}
+            <Route path="/extension-auth" element={<ProtectedRoute><ExtensionAuth /></ProtectedRoute>} />
 
             {/* 404 Page */}
             <Route path="*" element={<NotFound />} />

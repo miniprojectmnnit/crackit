@@ -14,19 +14,19 @@ const QuestionPanel = ({ question }) => {
       {/* Header — sticky */}
       <div className="sticky top-0 z-10 px-5 py-3 border-b border-white/[0.06] bg-[#1a1a2e]/90 backdrop-blur-md flex-shrink-0">
         <h2 className="text-base font-bold text-white leading-snug tracking-tight">
-          {question.question_text?.replace(/\s*—\s*Please read the description and think out loud\./i, '')}
+          {question.title || question.question_text?.replace(/\s*—\s*Please read the description and think out loud\./i, '')}
         </h2>
       </div>
 
       {/* Scrollable Content — compact spacing */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 space-y-4 custom-scrollbar">
 
-        {/* Description */}
-        {cleanDescription && (
+        {/* Description/Question Text */}
+        {(cleanDescription || question.question_text) && (
           <div 
              className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words
                [&>p]:mb-3 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-3 [&>code]:bg-white/[0.08] [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded-md [&>code]:text-cyan-300 [&>code]:font-mono [&>code]:text-[13px] [&>strong]:text-white"
-             dangerouslySetInnerHTML={{ __html: cleanDescription }}
+             dangerouslySetInnerHTML={{ __html: cleanDescription || question.question_text }}
           />
         )}
 

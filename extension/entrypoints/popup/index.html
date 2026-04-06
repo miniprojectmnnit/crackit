@@ -12,7 +12,13 @@
   <div id="app">
     <h1>Interview Extractor</h1>
     <div id="status"></div>
-    <div class="actions">
+
+    <div id="link-container" style="display:none;">
+      <p class="auth-helper">Link your account to extract questions.</p>
+      <button id="login-btn" class="primary-btn">Link Account</button>
+    </div>
+
+    <div class="actions" id="main-actions" style="display:none;">
       <button id="extract-btn">Extract Interview Questions</button>
       <button id="mock-btn" style="display:none;">Start Mock Interview</button>
     </div>
