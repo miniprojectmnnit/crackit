@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthFetch } from "../auth/useAuthFetch";
 import { useAuth } from "@clerk/clerk-react";
+import { useApiKey } from "../auth/ApiKeyContext";
 import {
   FileText,
   Users,
@@ -68,7 +69,9 @@ const Home = () => {
   const { isSignedIn } = useAuth();
   const [hoveredCard, setHoveredCard] = useState(null);
   
-  const [keysList, setKeysList] = useState([]);
+  const [searchParams] = useSearchParams();
+  const { keysList, fetchKeys, hasKeys } = useApiKey();
+  
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
   const [apiKeysStatus, setApiKeysStatus] = useState('');
@@ -76,20 +79,11 @@ const Home = () => {
   const [alertMessage, setAlertMessage] = useState('');
   const apiKeySectionRef = React.useRef(null);
 
-  const fetchKeys = async () => {
-    try {
-      const response = await authFetch(`${API_BASE_URL}/api/settings/keys`);
-      if (response.ok) {
-        const data = await response.json();
-        setKeysList(data.keys || []);
-      }
-    } catch(e) {}
-  };
-
   useEffect(() => {
-    if (!isSignedIn) return;
-    fetchKeys();
-  }, [isSignedIn, authFetch]);
+    if (searchParams.get('showKeyPrompt')) {
+      apiKeySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [searchParams]);
 
   const handleAddKey = async () => {
     if (!isSignedIn) {
@@ -145,7 +139,7 @@ const Home = () => {
   };
   const handleStartInterview = () => {
     // If user has keys in their wallet, proceed
-    if (keysList.length > 0 || (newKeyValue.trim().startsWith('gsk_'))) {
+    if (hasKeys || (newKeyValue.trim().startsWith('gsk_'))) {
       navigate("/resume-upload");
       return;
     }
