@@ -14,7 +14,7 @@ const QuestionPanel = ({ question }) => {
       {/* Header — sticky */}
       <div className="sticky top-0 z-10 px-5 py-3 border-b border-white/[0.06] bg-[#1a1a2e]/90 backdrop-blur-md flex-shrink-0">
         <h2 className="text-base font-bold text-white leading-snug tracking-tight">
-          {question.question_text}
+          {question.question_text?.replace(/\s*—\s*Please read the description and think out loud\./i, '')}
         </h2>
       </div>
 

@@ -226,7 +226,7 @@ async function createOrUpdateDsaQuestion(qData, difficulty) {
   let questionDoc = await Question.findOne({ normalized_text: normalizedText });
   if (!questionDoc) {
      questionDoc = new Question({
-       question_text: `${qData.title} — Please read the description and think out loud.`,
+       question_text: qData.title,
        normalized_text: normalizedText,
        type: "Coding",
        difficulty: difficulty,

@@ -12,19 +12,17 @@ import { WS_BASE_URL } from '../config';
 const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswerCorrected, onSessionRestored) => {
   const [connectionState, setConnectionState] = useState('disconnected');
   const [progress, setProgress] = useState({ current: 0, total: 10 });
+  const [retryCount, setRetryCount] = useState(0);
   const { getToken } = useAuth();
   const wsRef = useRef(null);
 
-  useEffect(() => {
+  const startConnection = useCallback(async () => {
     if (!sessionId) return;
-    let cancelled = false;
-    
+
     setConnectionState('connecting');
 
-    const startConnection = async () => {
+    try {
       const token = await getToken();
-      if (cancelled) return;
-
       const wsUrl = `${WS_BASE_URL}/ws/interview/${sessionId}?token=${token}`;
       console.log('[WS] Connecting to:', wsUrl.split('?')[0]);
 
@@ -34,6 +32,7 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
       ws.onopen = () => {
         console.log('[WS] Connected');
         setConnectionState('connected');
+        setRetryCount(0); // Reset on success
       };
 
       ws.onmessage = (event) => {
@@ -43,11 +42,9 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
 
           switch (data.type) {
             case 'session_ready':
-              console.log('[WS] Session ready');
               break;
 
             case 'session_restored':
-              console.log('[WS] Session restored with history');
               if (data.progress) setProgress(data.progress);
               if (onSessionRestored) onSessionRestored(data.transcript, data.phase, data.question);
               break;
@@ -84,31 +81,44 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
 
       ws.onclose = () => {
         console.log('[WS] Closed');
-        setConnectionState('disconnected');
+        setConnectionState(prev => prev === 'error' ? 'error' : 'disconnected');
+
+        // Auto-reconnect logic (max 5 times)
+        if (retryCount < 5) {
+          const nextRetry = retryCount + 1;
+          setRetryCount(nextRetry);
+          const delay = Math.min(1000 * Math.pow(2, nextRetry - 1), 10000); // 1s, 2s, 4s, 8s, 10s
+          console.log(`[WS] Attempting reconnect ${nextRetry}/5 in ${delay}ms...`);
+          setTimeout(() => {
+            startConnection();
+          }, delay);
+        }
       };
-    };
+    } catch (err) {
+      console.error('[WS] Token/Init Error:', err);
+      setConnectionState('error');
+    }
+  }, [sessionId, getToken, onAiMessage, onInterviewComplete, onAnswerCorrected, onSessionRestored, retryCount]);
 
+  useEffect(() => {
     startConnection();
-
     return () => {
-      cancelled = true;
       wsRef.current?.close();
     };
-  }, [sessionId, getToken, onAiMessage, onInterviewComplete, onAnswerCorrected, onSessionRestored]);
+  }, [sessionId]); // Initial connection only, useCallBack handles retries
 
   const sendAnswer = useCallback((answerText, codeContent = null, isFinalSubmission = false, language = null) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ 
-        type: 'user_answer', 
-        text: answerText, 
+      wsRef.current.send(JSON.stringify({
+        type: 'user_answer',
+        text: answerText,
         code: codeContent,
         language: language,
-        isFinalSubmission: !!isFinalSubmission 
+        isFinalSubmission: !!isFinalSubmission
       }));
     }
   }, []);
 
-  // Signal to server that Gemini has finished speaking
   const signalSpeechDone = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       console.log('[WS] Sending speech_done signal');
@@ -116,9 +126,14 @@ const useInterviewSocket = (sessionId, onAiMessage, onInterviewComplete, onAnswe
     }
   }, []);
 
+  const reconnect = useCallback(() => {
+    setRetryCount(0);
+    startConnection();
+  }, [startConnection]);
+
   const disconnect = useCallback(() => wsRef.current?.close(), []);
 
-  return { connectionState, progress, sendAnswer, signalSpeechDone, disconnect };
+  return { connectionState, progress, sendAnswer, signalSpeechDone, disconnect, reconnect };
 };
 
 export default useInterviewSocket;
