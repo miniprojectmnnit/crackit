@@ -5,6 +5,16 @@ import { defineBackground } from 'wxt/sandbox';
 import { extractQuestionsApi } from '../../utils/api.js';
 
 export default defineBackground(() => {
+  chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
+    if (request.action === 'SET_EXT_TOKEN') {
+      chrome.storage.local.set({ extension_token: request.token }, () => {
+        console.log('[AUTH] ✅ Extension token saved from external source.');
+        sendResponse({ success: true });
+      });
+      return true; // async
+    }
+  });
+
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'PROCESS_EXTRACTION') {
       

@@ -67,3 +67,31 @@ button:disabled {
   display: flex;
   justify-content: space-between;
 }
+.primary-btn {
+  background-color: #10b981;
+}
+.primary-btn:hover {
+  background-color: #059669;
+}
+.auth-helper {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+#link-container {
+  text-align: center;
+  padding: 10px 0;
+}
+.loading {
+  color: #007bff;
+  font-weight: 500;
+}
+.error {
+  color: #dc3545;
+  font-weight: 500;
+}
+.success {
+  color: #28a745;
+  font-weight: 500;
+}

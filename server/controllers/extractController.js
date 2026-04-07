@@ -12,7 +12,10 @@ const { upsertQuestions } = require("../services/questionService");
 const log = require("../utils/logger");
 
 exports.extractQuestions = async (req, res) => {
-    const { userId } = getAuth(req);
+    // Check Clerk auth OR our custom Extension Auth bridge
+    const auth = getAuth(req);
+    const userId = auth?.userId || req.extensionAuth?.userId;
+    
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const { url, article_text } = req.body;

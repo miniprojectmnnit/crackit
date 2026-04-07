@@ -26,7 +26,7 @@ WHAT TO IGNORE:
 - article headers, navigation elements, company intros, solutions, commentary
 
 CLASSIFICATION RULES:
-- Coding: Algorithm problems, data structures, or code-related questions. If it asks to solve a problem with a function, it is CODING.
+- Coding: Algorithm problems, data structures, or code-related questions. If it asks to solve a problem with a function, or describes a problem that requires an input-output logic (e.g., "Given two strings...", "Find the middle of..."), it is CODING.
 - Behavioral: Teamwork, challenges, leadership, and experience.
 - System Design: Large systems, architectures, scalability, and design.
 - General: Knowledge-based questions (OS, Networking, DBMS) that DON'T require coding a solution.

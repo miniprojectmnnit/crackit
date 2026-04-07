@@ -382,16 +382,18 @@ const InterviewRoom = () => {
     setIsEvaluatingCode(false);
   };
 
-  // Auto-scroll
+  // Auto-scroll to latest message
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcript]);
+    if (!isChatMinimized) {
+        // Use a small delay to ensure the animation/render is complete
+        const timer = setTimeout(() => {
+            transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+        return () => clearTimeout(timer);
+    }
+  }, [transcript, isChatMinimized]);
 
   const isCodingArea = (roundType === 'dsa' || currentQuestion?.type === 'Coding') && !!currentQuestion;
-
-  const constraintsRef = useRef(null);
-  const isDragging = useRef(false);
-  const [chatAnchor, setChatAnchor] = useState({ vertical: 'bottom', horizontal: 'right' });
 
   return (
     <div className="h-screen bg-[#0a0a0a] text-slate-300 flex flex-col font-sans overflow-hidden">
@@ -430,7 +432,7 @@ const InterviewRoom = () => {
       {/* Main content */}
       {isCodingArea ? (
         // ─── CODING ROUND (LEETCODE UI) ────────────────────────────────────────────────────────────
-        <div className="flex-1 flex overflow-hidden p-2 gap-2 bg-[#000000] min-h-0 relative" ref={constraintsRef}>
+        <div className="flex-1 flex overflow-hidden p-2 gap-2 bg-[#000000] min-h-0 relative">
           
           {/* Left: Question Panel (scrollable) */}
           <div className="w-1/2 flex flex-col bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden shadow-2xl">
@@ -439,7 +441,7 @@ const InterviewRoom = () => {
             </div>
           </div>
 
-          {/* Right: Code Editor (Run/Submit now in header) */}
+          {/* Right: Code Editor */}
           <div className="w-1/2 flex flex-col bg-[#1e1e1e] rounded-xl border border-white/5 overflow-hidden shadow-2xl">
              <CodeEditor
                code={code}
@@ -453,54 +455,24 @@ const InterviewRoom = () => {
              />
           </div>
 
-          {/* Floating AI Chat Window */}
-          <motion.div 
-            drag
-            dragConstraints={constraintsRef}
-            dragMomentum={false}
-            onDragStart={() => {
-              isDragging.current = true;
-            }}
-            onDragEnd={(e, info) => {
-              setTimeout(() => {
-                isDragging.current = false;
-              }, 100);
-              const rect = info.point;
-              setChatAnchor({
-                vertical: rect.y < window.innerHeight / 2 ? 'top' : 'bottom',
-                horizontal: rect.x < window.innerWidth / 2 ? 'left' : 'right'
-              });
-            }}
-            className="absolute z-50 flex flex-col cursor-grab active:cursor-grabbing"
-            style={{ 
-               pointerEvents: 'auto',
-               touchAction: 'none',
-               bottom: 24,
-               right: 24,
-               width: 80,
-               height: 80
-            }}
-          >
+          {/* Floating AI Chat Window - Fixed at bottom right */}
+          <div className="absolute bottom-6 left-6 z-50">
              <AnimatePresence mode="wait">
                {isChatMinimized ? (
-                  // Draggable Circle UI
+                  // Minimized Circle UI
                   <motion.div 
                      key="circle"
                      initial={{ scale: 0, opacity: 0 }}
                      animate={{ scale: 1, opacity: 1 }}
                      exit={{ scale: 0, opacity: 0 }}
-                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                     className="w-full h-full flex items-center justify-center relative touch-none hover:bg-white/5 transition-colors rounded-full bg-[#0f111a] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] border border-white/10"
-                     onClick={(e) => {
-                        if (isDragging.current) {
-                          e.preventDefault();
-                          return;
-                        }
+                     transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                     className="w-16 h-16 flex items-center justify-center relative hover:bg-white/5 transition-colors rounded-full bg-[#0f111a] backdrop-blur-xl shadow-[0_8px_32px_rgba(34,211,238,0.2)] border border-white/10 cursor-pointer"
+                     onClick={() => {
                         setIsChatMinimized(false);
                         setPopoutMessage(null);
                      }}
                   >
-                     <span className="text-4xl relative z-10 pointer-events-none drop-shadow-lg">🤖</span>
+                     <span className="text-3xl relative z-10 pointer-events-none drop-shadow-lg">🤖</span>
                      {isSpeaking && (
                         <div className={`absolute inset-0 rounded-full border-4 ${activeTheme.borderRing} animate-ping opacity-50 pointer-events-none`} />
                      )}
@@ -511,11 +483,11 @@ const InterviewRoom = () => {
                      <AnimatePresence>
                        {popoutMessage && (
                          <motion.div
-                           initial={{ opacity: 0, scale: 0.8, x: 20 }}
-                           animate={{ opacity: 1, scale: 1, x: 0 }}
-                           exit={{ opacity: 0, scale: 0.8, x: 10 }}
-                           transition={{ type: 'spring', damping: 20 }}
-                           className="absolute bottom-[110%] md:-left-[280px] w-64 p-3 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 rounded-2xl text-xs text-slate-200 shadow-2xl pointer-events-none z-[60]"
+                           initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                           animate={{ opacity: 1, y: 0, scale: 1 }}
+                           exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                           transition={{ duration: 0.3 }}
+                           className="absolute bottom-[115%] left-0 w-64 p-3 bg-slate-800/95 backdrop-blur-md border border-slate-700/50 rounded-2xl text-xs text-slate-200 shadow-2xl pointer-events-none z-[60]"
                          >
                            <div className={`font-bold mb-1.5 uppercase tracking-wider text-[10px] ${popoutMessage.role === 'interviewer' ? activeTheme.text : 'text-emerald-400'} opacity-90`}>
                               {popoutMessage.role === 'interviewer' ? 'AI Interviewer' : 'You'}
@@ -523,7 +495,7 @@ const InterviewRoom = () => {
                            <div className="line-clamp-4 leading-relaxed whitespace-pre-wrap">{popoutMessage.text}</div>
                            
                            {/* Tip arrow */}
-                           <div className="absolute -bottom-2 right-6 w-4 h-4 bg-slate-800/95 border-r border-b border-slate-700/50 transform rotate-45" />
+                           <div className="absolute -bottom-1.5 left-8 w-3 h-3 bg-slate-800/95 border-r border-b border-slate-700/50 transform rotate-45" />
                          </motion.div>
                        )}
                      </AnimatePresence>
@@ -532,22 +504,16 @@ const InterviewRoom = () => {
                   // Full Chat Window
                   <motion.div 
                      key="chat"
-                     initial={{ opacity: 0, scale: 0.7 }}
-                     animate={{ opacity: 1, scale: 1 }}
-                     exit={{ opacity: 0, scale: 0.7 }}
-                     transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                     style={{ transformOrigin: `${chatAnchor.vertical} ${chatAnchor.horizontal}` }}
-                     className={`absolute ${chatAnchor.vertical}-0 ${chatAnchor.horizontal}-0 z-50 w-[420px] h-[600px] flex flex-col overflow-hidden bg-[#0f111a] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] border border-white/10 rounded-2xl cursor-auto`} 
-                     onPointerDown={(e) => {
-                         const isInteractive = e.target.closest('button') || e.target.closest('.custom-scrollbar') || e.target.closest('textarea') || e.target.closest('input');
-                         if (isInteractive) e.stopPropagation();
-                     }}
+                     initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                     transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                     style={{ transformOrigin: 'bottom left' }}
+                     className="w-[340px] h-[460px] flex flex-col overflow-hidden bg-[#0f111a] backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 rounded-2xl" 
                   >
-                    {/* Chat Header (Drag Handle) */}
-                    <div 
-                       className="flex items-center justify-between p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-white/10 cursor-grab active:cursor-grabbing hover:bg-slate-800 transition-colors group flex-shrink-0"
-                    >
-                       <div className="flex items-center gap-3 pl-1 pointer-events-none">
+                    {/* Chat Header */}
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-900/50 to-slate-800/50 border-b border-white/10 flex-shrink-0">
+                       <div className="flex items-center gap-3 pl-1">
                            <div className="relative">
                                <div className={`w-2 h-2 rounded-full ${isSpeaking ? `${activeTheme.bgPulse} animate-ping` : isListening ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
                                <div className={`absolute inset-0 w-2 h-2 rounded-full ${isSpeaking ? activeTheme.bgPulse : isListening ? 'bg-emerald-500' : 'bg-slate-600'}`} />
@@ -558,18 +524,16 @@ const InterviewRoom = () => {
                                {isListening && <span className="text-[10px] text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded-full border border-emerald-400/20">Listening...</span>}
                            </div>
                        </div>
-                       <div className="flex items-center gap-1 z-10 hidden group-hover:block" />
-                       <button className="text-slate-400 hover:text-white transition-colors w-6 h-6 flex items-center justify-center rounded-md hover:bg-white/10" 
-                          onPointerDown={(e) => { e.stopPropagation(); }}
+                       <button className="text-slate-400 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10" 
                           onClick={() => setIsChatMinimized(true)}
                        >
-                          <svg className="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                        </button>
                     </div>
 
-                    <div className="flex-1 flex flex-col overflow-hidden bg-[#0f111a]/95 cursor-auto">
+                    <div className="flex-1 flex flex-col overflow-hidden bg-[#0f111a]/40">
                        <div 
                          className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar" 
                          style={{ scrollBehavior: 'smooth' }}
@@ -577,7 +541,7 @@ const InterviewRoom = () => {
                           {transcript.length === 0 && (
                              <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-3">
                                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-slate-700">🎙️</div>
-                                 <div className="text-xs">Waiting for conversation...</div>
+                                 <div className="text-xs font-medium">Ready for conversation...</div>
                              </div>
                           )}
                           {transcript.map((msg, i) => (
@@ -587,45 +551,89 @@ const InterviewRoom = () => {
                           {/* Live interim transcript */}
                           {pendingAnswer && isListening && (
                             <div className="flex justify-end animate-fade-in-up">
-                              <div className="max-w-[85%] px-3 py-2.5 rounded-2xl rounded-tr-sm text-xs bg-emerald-950/40 border border-emerald-800/30 text-emerald-300/80 italic shadow-sm">
-                                <span className="text-[9px] font-semibold block mb-1 text-emerald-500/60 uppercase tracking-wider">You</span>
+                              <div className="max-w-[85%] px-4 py-3 rounded-2xl rounded-tr-sm text-[13px] bg-emerald-950/40 border border-emerald-800/30 text-emerald-300/80 italic shadow-sm">
+                                <span className="text-[9px] font-bold block mb-1 text-emerald-500/60 uppercase tracking-wider">You</span>
                                 {pendingAnswer}
-                                <span className="inline-block ml-1 w-1 h-2.5 bg-emerald-400 animate-pulse rounded-sm align-middle" />
+                                <span className="inline-block ml-1 w-1 h-3 bg-emerald-400 animate-pulse rounded-sm align-middle" />
                               </div>
                             </div>
                           )}
                           <div ref={transcriptEndRef} />
                        </div>
                        
-                       {/* Floating Input Area */}
-                       <div className="shrink-0 bg-black/60 border-t border-white/10 p-2 min-h-[120px]">
-                          <UnifiedInput
-                            answer={pendingAnswer}
-                            onAnswerChange={setPendingAnswer}
-                            onSubmit={() => submitAnswer(pendingAnswer)}
-                            isEvaluating={false}
-                            isListening={isListening}
-                            isSpeechSupported={true}
-                            onToggleListening={(currentText = pendingAnswer) => {
-                              if (isListening) {
-                                stopListening();
-                                listeningRef.current = false;
-                                setIsListening(false);
-                              } else {
-                                startListening(currentText);
-                                listeningRef.current = true;
-                                setIsListening(true);
-                              }
-                            }}
-                            volume={volume}
-                            isSpeaking={isSpeaking}
-                          />
+                       {/* Compact Status Bar */}
+                       <div className="shrink-0 border-t border-white/5 px-3 py-2.5">
+                          <div className="flex items-center gap-3">
+                             {/* Mini voice visualizer */}
+                             <div className="flex items-center gap-[2px] h-5 flex-shrink-0">
+                               {Array.from({ length: 8 }).map((_, i) => {
+                                 const h = isListening 
+                                   ? Math.max(3, (volume / 100) * 18 * (0.5 + 0.5 * Math.sin(i * 0.9)))
+                                   : 3;
+                                 return (
+                                   <div key={i} className={`w-[2px] rounded-full transition-all duration-75 ${
+                                     isListening ? 'bg-emerald-400' : isSpeaking ? 'bg-cyan-400' : 'bg-slate-700'
+                                   } ${isSpeaking && !isListening ? 'animate-pulse' : ''}`} 
+                                   style={{ 
+                                     height: isListening ? `${h}px` : isSpeaking ? `${6 + Math.sin(i * 1.2) * 8}px` : '3px',
+                                     animationDelay: isSpeaking ? `${i * 80}ms` : '0ms',
+                                     animationDuration: isSpeaking ? '0.6s' : '0.15s'
+                                   }} />
+                                 );
+                               })}
+                             </div>
+
+                             {/* Status text */}
+                             <div className="flex-1 min-w-0">
+                               {isSpeaking && !isListening && (
+                                 <div className="flex items-center gap-1.5">
+                                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                   <span className="text-[11px] text-cyan-400 font-medium truncate">AI Speaking...</span>
+                                 </div>
+                               )}
+                               {isListening && (
+                                 <div className="flex items-center gap-1.5">
+                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                   <span className="text-[11px] text-emerald-400 font-medium truncate">Listening...</span>
+                                 </div>
+                               )}
+                               {!isSpeaking && !isListening && (
+                                 <span className="text-[11px] text-slate-600 font-medium">Ready</span>
+                               )}
+                             </div>
+
+                             {/* Mic toggle button */}
+                             <button
+                               onClick={() => {
+                                 if (isListening) {
+                                   stopListening();
+                                   listeningRef.current = false;
+                                   setIsListening(false);
+                                 } else {
+                                   startListening(pendingAnswer);
+                                   listeningRef.current = true;
+                                   setIsListening(true);
+                                 }
+                               }}
+                               className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 ${
+                                 isListening
+                                   ? 'bg-red-500/90 text-white shadow-lg shadow-red-900/30 hover:bg-red-400'
+                                   : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-200'
+                               }`}
+                             >
+                               {isListening ? (
+                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10h6v4H9z" /></svg>
+                               ) : (
+                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                               )}
+                             </button>
+                          </div>
                        </div>
-                     </div>
+                    </div>
                   </motion.div>
                )}
              </AnimatePresence>
-          </motion.div>
+          </div>
 
         </div>
       ) : (
