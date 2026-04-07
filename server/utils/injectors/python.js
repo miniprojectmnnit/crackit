@@ -15,8 +15,13 @@ if __name__ == '__main__':
             # Parse the JSON string array of arguments into python list
             args = json.loads(raw_args)
             
-            # Assuming the function name is 'solve' if not provided
-            method_to_call = globals().get('${method_name}', globals().get('solve'))
+            # Check for LeetCode-style 'Solution' class
+            sol_class = globals().get('Solution')
+            if sol_class:
+                sol_instance = sol_class()
+                method_to_call = getattr(sol_instance, '${method_name}', None)
+            else:
+                method_to_call = globals().get('${method_name}', globals().get('solve'))
             
             if method_to_call:
                 res = method_to_call(*args)

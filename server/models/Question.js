@@ -1,5 +1,17 @@
 const mongoose = require("mongoose");
 
+const snippetSchema = new mongoose.Schema({
+  method_name: String,
+  parameters: [
+    {
+      name: String,
+      type: String
+    }
+  ],
+  return_type: String,
+  starter_code: String
+}, { _id: false });
+
 const questionSchema = new mongoose.Schema({
   question_text: { type: String, required: true },
 
@@ -27,7 +39,8 @@ const questionSchema = new mongoose.Schema({
   // New fields for AI Interviewer System
   title: { type: String },
   description: { type: String },
-  constraints: { type: String },
+  constraints: { type: [String], default: [] },
+  topics: { type: [String], default: [] },
   method_name: { type: String },
   parameters: [
     {
@@ -39,6 +52,11 @@ const questionSchema = new mongoose.Schema({
   starter_code: { type: String },
   solution: { type: String },
   source_site: { type: String },
+
+  snippets: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed
+  },
 
   examples: [
     {

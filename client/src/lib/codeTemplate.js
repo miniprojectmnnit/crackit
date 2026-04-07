@@ -4,8 +4,19 @@
  * @returns {string} Code template string
  */
 export const generateCodeTemplate = (question, language = "JavaScript") => {
+  const langKey = language.toLowerCase() === "c++" ? "cpp" : language.toLowerCase();
+  const snippets = question.snippets || question.code_snippets || {};
+  const snippet = snippets[langKey] || (typeof snippets.get === 'function' ? snippets.get(langKey) : null);
+
+  if (snippet && (snippet.code || snippet.starter_code)) {
+    return snippet.code || snippet.starter_code;
+  }
+
   if (question.starter_code && language.toLowerCase() === "c++") {
-    return question.starter_code;
+    // Only use top-level fallback if it's actually C++ (unlikely if it's the JS one)
+    if (question.starter_code.includes("class Solution") || question.starter_code.includes("#include")) {
+        return question.starter_code;
+    }
   }
   
   let method = question.method_name;

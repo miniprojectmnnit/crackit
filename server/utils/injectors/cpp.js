@@ -14,7 +14,7 @@ function cppInjector(userCode, method_name, testCasesInputs, problemDetails, par
     else if (cppType === 'std::vector<std::string>') parser = 'parseVectorStringValue';
     else if (cppType === 'std::vector<std::vector<int>>') parser = 'parseVectorVectorIntValue';
 
-    return `const ${cppType} ${p.name} = ${parser}(args[${idx}]);`;
+    return `${cppType} ${p.name} = ${parser}(args[${idx}]);`;
   }).join('\n              ');
 
   const callArgs = parameters.map(p => p.name).join(', ');
@@ -32,6 +32,8 @@ function cppInjector(userCode, method_name, testCasesInputs, problemDetails, par
 #include <climits>
 #include <limits>
 #include <cmath>
+
+using namespace std;
 
 ${userCode}
 
