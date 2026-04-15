@@ -3,19 +3,25 @@
  */
 function getType(type, lang) {
   if (!type) return lang === 'c++' ? 'int' : 'int';
-  const t = type.toLowerCase().trim();
+  const t = type.toLowerCase().trim().replace(/&$/, "");
   if (t === 'string') return lang === 'c++' ? 'std::string' : 'String';
   if (t === 'integer' || t === 'int') return 'int';
   if (t === 'long') return lang === 'c++' ? 'long long' : 'long';
   if (t === 'double' || t === 'float') return 'double';
   if (t === 'boolean' || t === 'bool') return lang === 'c++' ? 'bool' : 'boolean';
+  if (t === 'any') return lang === 'c++' ? 'int' : 'Object';
+  
   if (t.includes('[]') || t.includes('vector') || t.includes('list')) {
-    const inner = t.replace('[]', '').replace('vector<', '').replace('list<', '').replace('>', '').trim();
+    let inner = t.replace('[]', '').replace('vector<', '').replace('list<', '').replace('>', '').trim();
+    if (!inner || inner === 'any' || inner === 'auto') {
+        inner = 'int'; // Default to int for empty/any collection types in DSA
+    }
     const innerMapped = getType(inner, lang);
     if (lang === 'c++') return `std::vector<${innerMapped}>`;
     if (lang === 'java') return `${innerMapped}[]`;
   }
-  return lang === 'c++' ? 'auto' : 'Object';
+
+  return lang === 'c++' ? 'int' : 'Object'; // Safer default than 'auto'
 }
 
 /**

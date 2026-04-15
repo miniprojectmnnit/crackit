@@ -19,8 +19,26 @@ function injectCode(userCode, language, problemDetails, testCases) {
   }
 
   const lang = language.toLowerCase();
-  const method_name = determineMethodName(problemDetails, lang);
-  const parameters = problemDetails.parameters || [{ name: "input", type: "any" }];
+  
+  // Map "c++" to "cpp" if that's how it's stored in snippets
+  const snippetKey = (lang === "c++" || lang === "cpp") ? "cpp" : lang;
+  const snippets = problemDetails.snippets;
+  
+  // Handle both Mongoose Map and regular Object
+  const snippet = snippets ? (typeof snippets.get === 'function' ? snippets.get(snippetKey) : snippets[snippetKey]) : null;
+
+  let method_name = snippet?.function_name || snippet?.method_name || determineMethodName(problemDetails, lang);
+  let parameters = (snippet?.parameters && snippet.parameters.length > 0) ? snippet.parameters : (problemDetails.parameters || [{ name: "input", type: "any" }]);
+  let return_type = snippet?.return_type || problemDetails.return_type || "any";
+
+  // Provide a localized problemDetails-like object for injectors that expect it
+  const localizedDetails = {
+    ...problemDetails.toObject ? problemDetails.toObject() : problemDetails,
+    method_name,
+    parameters,
+    return_type
+  };
+
   const testCasesInputs = parseTestCases(testCases);
   const stringifiedTests = JSON.stringify(testCasesInputs);
 
@@ -32,10 +50,11 @@ function injectCode(userCode, language, problemDetails, testCases) {
       return javascriptInjector(userCode, method_name, stringifiedTests);
       
     case "java":
-      return javaInjector(userCode, method_name, testCasesInputs, problemDetails, parameters);
+      return javaInjector(userCode, method_name, testCasesInputs, localizedDetails, parameters);
       
     case "c++":
-      return cppInjector(userCode, method_name, testCasesInputs, problemDetails, parameters);
+    case "cpp":
+      return cppInjector(userCode, method_name, testCasesInputs, localizedDetails, parameters);
       
     default:
       throw new Error("Unsupported language: " + language);

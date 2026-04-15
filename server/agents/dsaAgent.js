@@ -205,85 +205,103 @@ const { generateCodeMetadata } = require("./codeGeneratorAgent");
 // ── Database Helper ───────────────────────────────────────────────────────────
 
 async function createOrUpdateDsaQuestion(qData, difficulty) {
-  let description = qData.desc || qData.description || "";
+  if (!qData) return null;
+  try {
+    const normalizedText = (qData.title + " " + (qData.link || "")).substring(0, 100).toLowerCase().replace(/[^a-z0-9]/g, '') || Date.now().toString();
 
-  if (qData.constraints && Array.isArray(qData.constraints) && qData.constraints.length > 0) {
-    description += "\n\nConstraints:\n- " + qData.constraints.join("\n- ");
-  }
+    let questionDoc = await Question.findOne({ normalized_text: normalizedText });
 
-  if (description) {
-    if (qData.link) {
-      description += `\n\nProblem Link: ${qData.link}`;
+    const { examples, test_cases, parameters: regexParameters, return_type: regexReturnType } = parseExamplesToTestCases(qData.examples);
+
+    // Align snippets with Question schema (function_name -> method_name, code -> starter_code)
+    const snippetsMap = {};
+    if (qData.code_snippets) {
+      for (const [lang, data] of Object.entries(qData.code_snippets)) {
+        let rawParams = data.parameters;
+        if (typeof rawParams === 'string') {
+          try { rawParams = JSON.parse(rawParams); } catch(e) { rawParams = []; }
+        }
+        if (!Array.isArray(rawParams)) rawParams = [];
+
+        snippetsMap[lang] = {
+          method_name: data.function_name || data.method_name || "",
+          parameters: rawParams.map(p => ({
+            name: (typeof p === 'object' && p !== null) ? (p.name || "param") : String(p),
+            type: (typeof p === 'object' && p !== null) ? (p.type || "any") : "any"
+          })),
+          return_type: String(data.return_type || "any"),
+          starter_code: String(data.code || data.starter_code || "")
+        };
+      }
     }
-  } else if (qData.link) {
-    description = `Please solve the following problem: ${qData.link}`;
-  }
 
-  const normalizedText = (qData.title + " " + (qData.link || "")).substring(0, 100).toLowerCase().replace(/[^a-z0-9]/g, '') || Date.now().toString();
+    console.log(`[DEBUG] Final snippetsMap for "${qData.title}":`, JSON.stringify(snippetsMap, null, 2));
 
-  const { examples, test_cases, parameters: regexParameters, return_type: regexReturnType } = parseExamplesToTestCases(qData.examples);
+    const updateData = {
+      question_text: qData.title,
+      normalized_text: normalizedText,
+      type: "Coding",
+      difficulty: difficulty,
+      title: qData.title,
+      description: qData.description || qData.desc || "",
+      constraints: qData.constraints || [],
+      topics: qData.topics || [],
+      examples: examples,
+      test_cases: (qData.test_cases && qData.test_cases.length > 0) ? qData.test_cases : test_cases,
+      source_site: qData.link ? (qData.link.includes("leetcode.com") ? "leetcode" : "external") : "internal",
+      snippets: snippetsMap
+    };
 
-  let questionDoc = await Question.findOne({ normalized_text: normalizedText });
-  if (!questionDoc) {
-     questionDoc = new Question({
-       question_text: qData.title,
-       normalized_text: normalizedText,
-       type: "Coding",
-       difficulty: difficulty,
-       title: qData.title,
-       description: description,
-       examples,
-       test_cases,
-       source_site: qData.link ? (qData.link.includes("leetcode.com") ? "leetcode" : "external") : "internal"
-     });
-     
-     // Preliminary values from regex
-     questionDoc.parameters = regexParameters;
-     questionDoc.return_type = regexReturnType;
-     
-     // Derive method name from title as fallback
-     let method_name = qData.title.replace(/ /g, '').replace(/[^a-zA-Z0-9]/g, '');
-     questionDoc.method_name = method_name.charAt(0).toLowerCase() + method_name.slice(1);
-     
-     await questionDoc.save();
-  } else {
-     // Ensure description and test cases are updated if we got better info
-     let updated = false;
-     if (!questionDoc.description || questionDoc.description.startsWith("Please solve")) {
-        questionDoc.description = description;
-        updated = true;
-     }
+    // Set default top-level fields for backward compatibility (prefer Javascript if available)
+    const defaultSnippet = qData.code_snippets?.javascript || qData.code_snippets?.python || qData.code_snippets?.cpp || Object.values(qData.code_snippets || {})[0];
 
-     if ((!questionDoc.test_cases || questionDoc.test_cases.length === 0) && test_cases.length > 0) {
-        questionDoc.test_cases = test_cases;
-        questionDoc.examples = examples;
-        updated = true;
-     }
+    if (defaultSnippet) {
+      updateData.method_name = defaultSnippet.function_name || defaultSnippet.method_name;
+      updateData.parameters = defaultSnippet.parameters;
+      updateData.return_type = defaultSnippet.return_type;
+      updateData.starter_code = defaultSnippet.code || defaultSnippet.starter_code;
+    } else {
+      // Fallback to regex/infer logic if no structured snippets found (e.g. for generic bank)
+      updateData.parameters = regexParameters;
+      updateData.return_type = regexReturnType;
+      let method_name = qData.title.replace(/ /g, '').replace(/[^a-zA-Z0-9]/g, '');
+      updateData.method_name = method_name.charAt(0).toLowerCase() + method_name.slice(1);
+    }
 
-     if (updated) {
-        await questionDoc.save();
-     }
-  }
-
-  // AI ENRICHMENT: If question lacks specific parameters or has generic 'any' type, call the Code Generator Agent
-  const currentParams = questionDoc.parameters || [];
-  const hasGenericType = currentParams.some(p => p.type === 'any' || p.type === 'auto') || currentParams.length === 0;
-  
-  if (hasGenericType || !questionDoc.method_name || !questionDoc.return_type) {
-    log.info("DSA_AGENT", `🤖 AI Enrichment triggered for: ${questionDoc.title}`);
-    const aiMetadata = await generateCodeMetadata(questionDoc.title, questionDoc.description, qData.examples);
-    
-    if (aiMetadata) {
-      questionDoc.method_name = aiMetadata.method_name;
-      questionDoc.parameters = aiMetadata.parameters;
-      questionDoc.return_type = aiMetadata.return_type;
-      questionDoc.starter_code = aiMetadata.starter_code;
+    if (!questionDoc) {
+      log.info("DSA_AGENT", `🆕 Creating new question: ${qData.title}`);
+      questionDoc = new Question(updateData);
       await questionDoc.save();
-      log.success("DSA_AGENT", `✅ AI Enrichment complete for: ${questionDoc.title}`);
+    } else {
+      log.info("DSA_AGENT", `🔄 Updating existing question: ${qData.title}`);
+      // Update existing document with new fields
+      Object.assign(questionDoc, updateData);
+      await questionDoc.save();
     }
-  }
 
-  return questionDoc;
+    // AI ENRICHMENT: Only if still missing metadata after structured data check
+    const currentParams = questionDoc.parameters || [];
+    const needsEnrichment = !questionDoc.method_name || !questionDoc.return_type || currentParams.length === 0 || currentParams.some(p => p.type === 'any' || p.type === 'auto');
+
+    if (needsEnrichment && !qData.code_snippets) {
+      log.info("DSA_AGENT", `🤖 AI Enrichment triggered for: ${questionDoc.title}`);
+      const aiMetadata = await generateCodeMetadata(questionDoc.title, questionDoc.description, qData.examples);
+      
+      if (aiMetadata) {
+        questionDoc.method_name = aiMetadata.method_name;
+        questionDoc.parameters = aiMetadata.parameters;
+        questionDoc.return_type = aiMetadata.return_type;
+        questionDoc.starter_code = aiMetadata.starter_code;
+        await questionDoc.save();
+        log.success("DSA_AGENT", `✅ AI Enrichment complete for: ${questionDoc.title}`);
+      }
+    }
+
+    return questionDoc;
+  } catch (err) {
+    log.error("DSA_AGENT", `Error processing question "${qData?.title}": ${err.message}`);
+    return null;
+  }
 }
 
 // ── Main function ─────────────────────────────────────────────────────────────
@@ -356,14 +374,25 @@ async function generateDsaQuestions(resumeProfile, context = {}) {
   }
 
   // Process and save questions concurrently
-  const processedQuestions = await Promise.all([
-    createOrUpdateDsaQuestion(easy, "Easy"),
-    createOrUpdateDsaQuestion(medium, "Medium"),
-    createOrUpdateDsaQuestion(hard, "Hard")
-  ]);
+  try {
+    const processedQuestions = await Promise.all([
+      createOrUpdateDsaQuestion(easy, "Easy"),
+      createOrUpdateDsaQuestion(medium, "Medium"),
+      createOrUpdateDsaQuestion(hard, "Hard")
+    ]);
 
-  log.success("DSA_AGENT", `✅ Processed and saved 3 DSA questions to DB.`);
-  return processedQuestions;
+    const finalQuestions = processedQuestions.filter(Boolean);
+    
+    if (finalQuestions.length === 0) {
+      throw new Error("All selected questions failed to process.");
+    }
+
+    log.success("DSA_AGENT", `✅ Processed and saved ${finalQuestions.length} DSA questions to DB.`);
+    return finalQuestions;
+  } catch (err) {
+    log.error("DSA_AGENT", `generateDsaQuestions critical failure: ${err.message}`);
+    throw err;
+  }
 }
 
 module.exports = { generateDsaQuestions, inferType, parseExamplesToTestCases };
