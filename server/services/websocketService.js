@@ -18,10 +18,130 @@ const log = require("../utils/logger");
 const requestContext = require("../utils/requestContext");
 const UserSettings = require("../models/UserSettings");
 const { decrypt } = require("../utils/cryptoUtils");
+const { getRedisClient, createSubscriber, isRedisReady } = require("../utils/redisClient");
 
-// Map session_id -> { ws, state, pendingNext }
-// pendingNext: what to do after speech_done arrives ("ask_question" | "generate_report" | null)
-const activeSessions = new Map();
+// ─── Dual-Layer Session State ─────────────────────────────────────────────────
+//
+// WHY TWO LAYERS?
+// WebSocket objects (ws) cannot be serialized to JSON, so they can NEVER be
+// stored in Redis. However, session state (questions, transcript, phase) CAN be.
+//
+// LOCAL MAP  → Stores the non-serializable ws object. Lives in this process only.
+// REDIS HASH → Stores serializable state. Shared across ALL Node containers.
+//
+// When Redis is NOT configured (REDIS_URI not set), both layers collapse into
+// the local Map only — identical behavior to the original single-process design.
+//
+// Key pattern: "ws:session:<sessionId>"
+const REDIS_SESSION_PREFIX = "ws:session:";
+const REDIS_CHANNEL_PREFIX  = "interview:session:";
+const SESSION_TTL_SECONDS   = 4 * 60 * 60; // 4 hours max interview duration
+
+// localSessions stores only: { ws, userApiKeys, pendingNext }
+// (things that cannot or should not go into Redis)
+const localSessions = new Map();
+
+// ─── Redis State Helpers ──────────────────────────────────────────────────────
+
+async function saveStateToRedis(sessionId, state) {
+  const redis = getRedisClient();
+  if (!redis) return; // No Redis — state already in localSessions (fallback mode)
+  try {
+    const key = `${REDIS_SESSION_PREFIX}${sessionId}`;
+    await redis.set(key, JSON.stringify(state), "EX", SESSION_TTL_SECONDS);
+  } catch (e) {
+    log.error("REDIS", `Failed to save session state: ${e.message}`);
+  }
+}
+
+async function loadStateFromRedis(sessionId) {
+  const redis = getRedisClient();
+  if (!redis) return null;
+  try {
+    const key = `${REDIS_SESSION_PREFIX}${sessionId}`;
+    const raw = await redis.get(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    log.error("REDIS", `Failed to load session state: ${e.message}`);
+    return null;
+  }
+}
+
+async function deleteStateFromRedis(sessionId) {
+  const redis = getRedisClient();
+  if (!redis) return;
+  try {
+    await redis.del(`${REDIS_SESSION_PREFIX}${sessionId}`);
+  } catch (e) {
+    log.error("REDIS", `Failed to delete session state: ${e.message}`);
+  }
+}
+
+// Get session state: prefer Redis (shared), fall back to localSessions
+async function getState(sessionId) {
+  if (isRedisReady()) {
+    const redisState = await loadStateFromRedis(sessionId);
+    if (redisState) return redisState;
+  }
+  // Fallback: get from local Map (used when Redis is not configured)
+  const local = localSessions.get(sessionId);
+  return local ? local.state : null;
+}
+
+// Save state: write to Redis AND update local copy for fast reads in same process
+async function saveState(sessionId, state) {
+  await saveStateToRedis(sessionId, state);
+  const local = localSessions.get(sessionId);
+  if (local) local.state = state;
+}
+
+// Publish a WebSocket message to whichever container holds the user's WS connection.
+// If Redis is not available, deliver directly (we are the only container).
+async function publishToSession(sessionId, payload) {
+  const redis = getRedisClient();
+  if (redis && isRedisReady()) {
+    try {
+      const channel = `${REDIS_CHANNEL_PREFIX}${sessionId}`;
+      await redis.publish(channel, JSON.stringify(payload));
+      return;
+    } catch (e) {
+      log.warn("REDIS", `Pub/Sub publish failed, falling back to direct send: ${e.message}`);
+    }
+  }
+  // Fallback: directly send via local ws (single-container mode)
+  const local = localSessions.get(sessionId);
+  if (local?.ws) sendToClient(local.ws, payload);
+}
+
+// Subscribe this container to receive messages published for a given sessionId.
+// Returns the subscriber client so the caller can clean it up on disconnect.
+function subscribeToSession(sessionId, ws) {
+  const subscriber = createSubscriber();
+  if (!subscriber) return null; // No Redis — no subscription needed
+
+  const channel = `${REDIS_CHANNEL_PREFIX}${sessionId}`;
+  subscriber.subscribe(channel, (err) => {
+    if (err) log.error("REDIS", `Subscription error for ${channel}: ${err.message}`);
+    else log.info("REDIS", `📡 Subscribed to channel: ${channel}`);
+  });
+
+  subscriber.on("message", (chan, message) => {
+    if (chan !== channel) return;
+    try {
+      const payload = JSON.parse(message);
+      sendToClient(ws, payload);
+    } catch (e) {
+      log.error("REDIS", `Failed to parse pub/sub message: ${e.message}`);
+    }
+  });
+
+  return subscriber;
+}
+
+// activeSessions is kept for backward compat references inside this file
+// It now points to localSessions (the ws-only layer)
+const activeSessions = localSessions;
+
 
 function extractQuestionText(q) {
   if (!q) return "";
@@ -92,7 +212,7 @@ async function initSession(ws, sessionId, authUserId) {
 
     const isResuming = session.transcript && session.transcript.length > 0;
 
-    // Build initial in-memory state
+    // Build initial state object (serializable — safe to store in Redis)
     const state = {
       session_id: sessionId,
       resume_profile: resumeProfileObj,
@@ -104,7 +224,10 @@ async function initSession(ws, sessionId, authUserId) {
       round_type: session.round_type || "resume"
     };
 
-    activeSessions.set(sessionId, { ws, state, pendingNext: null });
+    // Store only the ws connection (non-serializable) in localSessions
+    // State goes to Redis (shared across all containers)
+    localSessions.set(sessionId, { ws, pendingNext: null, state });
+    await saveState(sessionId, state);
 
     log.success("WS", `✅ Session ${sessionId} initialized. Resuming: ${isResuming}`);
     sendToClient(ws, { type: "session_ready", session_id: sessionId });
@@ -687,6 +810,12 @@ function attachWebSocket(httpServer) {
       initSession(ws, sessionId, authUserId);
     });
 
+    // Subscribe to Redis Pub/Sub for this session.
+    // When another container publishes a message to this session's channel
+    // (e.g., after code execution), this subscriber will receive it and
+    // forward it to the user's WebSocket connection.
+    const subscriber = subscribeToSession(sessionId, ws);
+
     ws.on("message", async (raw) => {
       requestContext.run({ apiKeys: userApiKeys }, async () => {
         try {
@@ -697,7 +826,7 @@ function attachWebSocket(httpServer) {
 
           } else if (data.type === "speech_done") {
             // Client signals that AI speech just finished — execute pending action
-            const sess = activeSessions.get(sessionId);
+            const sess = localSessions.get(sessionId);
             if (!sess || !sess.pendingNext) return;
 
             const pending = sess.pendingNext;
@@ -717,9 +846,18 @@ function attachWebSocket(httpServer) {
       });
     });
 
-    ws.on("close", () => {
+    ws.on("close", async () => {
       log.info("WS", `🔌 Disconnected — session: ${sessionId}`);
-      activeSessions.delete(sessionId);
+      // Clean up local ws reference
+      localSessions.delete(sessionId);
+      // Unsubscribe from Redis Pub/Sub channel
+      if (subscriber) {
+        subscriber.unsubscribe().catch(() => {});
+        subscriber.quit().catch(() => {});
+      }
+      // Note: We do NOT delete the Redis state key here.
+      // The session state has a 4-hour TTL and may be needed if the user reconnects.
+      // It will expire automatically via the TTL set in saveStateToRedis().
     });
 
     ws.on("error", (err) => log.error("WS", err.message));

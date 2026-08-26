@@ -10,7 +10,7 @@ const requestContext = require("./requestContext");
 function getLLM(options = {}) {
   const {
     temperature = 0.2,
-    model = "llama-3.3-70b-versatile",
+    model = "openai/gpt-oss-120b",
     apiKey: manualKey,
   } = options;
   const ctx = requestContext.getStore() || {};
@@ -24,7 +24,6 @@ function getLLM(options = {}) {
   } else {
     keysToUse = [process.env.GROQ_API_KEY].filter(Boolean);
   }
-  j;
 
   if (keysToUse.length === 0) {
     log.error(
