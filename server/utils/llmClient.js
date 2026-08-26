@@ -24,7 +24,6 @@ function getLLM(options = {}) {
   } else {
     keysToUse = [process.env.GROQ_API_KEY].filter(Boolean);
   }
-  j;
 
   if (keysToUse.length === 0) {
     log.error(
